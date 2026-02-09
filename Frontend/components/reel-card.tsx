@@ -97,9 +97,19 @@ export function ReelCard({
         {/* Author info at bottom of image */}
         <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 z-10">
           <div className="flex items-center gap-2 mb-2">
-            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-xs sm:text-sm font-bold text-white border-2 border-white/30">
-              {article.author.avatar || article.author.name.charAt(0)}
-            </div>
+            {article.author.picture ? (
+              <Image
+                src={article.author.picture}
+                alt={article.author.name}
+                width={32}
+                height={32}
+                className="h-7 w-7 sm:h-8 sm:w-8 rounded-full border-2 border-white/30 object-cover"
+              />
+            ) : (
+              <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-xs sm:text-sm font-bold text-white border-2 border-white/30">
+                {article.author.name.charAt(0)}
+              </div>
+            )}
             <span className="text-xs sm:text-sm font-bold text-white drop-shadow-lg">
               {article.author.name}
             </span>
