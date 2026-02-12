@@ -6,6 +6,9 @@ import { CreateArticleDto } from '../modules/articles/dto/create-article.dto';
 
 import { RedisService } from './redis.service';
 import { ArticlesGateway } from '../gateways/articles.gateway';
+import { AnalyticsService } from './analytics.service';
+import { AnalyticsEventType } from '../modules/analytics/analytics.interface';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
 export class ArticlesService {
@@ -14,7 +17,45 @@ export class ArticlesService {
     private usersService: UsersService,
     private articlesGateway: ArticlesGateway,
     private redisService: RedisService,
+    private analyticsService: AnalyticsService,
   ) {}
+
+  @Cron(CronExpression.EVERY_30_SECONDS)
+  async handleScheduledPosts() {
+    const now = new Date();
+
+    // Check for articles scheduled in the past that are not published
+    const dueArticles = await this.prisma.article.findMany({
+      where: {
+        published: false,
+        scheduledAt: {
+          lte: now,
+          not: null,
+        },
+      },
+      select: { id: true, title: true },
+    });
+
+    if (dueArticles.length > 0) {
+      console.log(
+        `[Cron] Publishing ${dueArticles.length} scheduled articles:`,
+        dueArticles.map((a) => a.title),
+      );
+
+      const updateResult = await this.prisma.article.updateMany({
+        where: {
+          id: { in: dueArticles.map((a) => a.id) },
+        },
+        data: {
+          published: true,
+          scheduledAt: null,
+        },
+      });
+      console.log(
+        `[Cron] Successfully published ${updateResult.count} articles.`,
+      );
+    }
+  }
 
   async createFromDto(dto: CreateArticleDto): Promise<Article> {
     // Find or create author
@@ -41,6 +82,8 @@ export class ArticlesService {
         location: dto.location,
         readTime: dto.readTime,
         authorId: author.id,
+        scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
+        published: dto.published !== undefined ? dto.published : true,
       },
       include: { author: true },
     });
@@ -50,9 +93,18 @@ export class ArticlesService {
     return this.prisma.article.create({ data });
   }
 
-  async findAll(limit = 20, offset = 0): Promise<Article[]> {
+  async findAll(limit = 20, offset = 0, hasMedia = false): Promise<Article[]> {
     const start = Date.now();
+    const where: Prisma.ArticleWhereInput = {
+      published: true,
+    };
+
+    if (hasMedia) {
+      where.image = { not: null };
+    }
+
     const articles = await this.prisma.article.findMany({
+      where,
       take: limit,
       skip: offset,
       include: {
@@ -71,8 +123,42 @@ export class ArticlesService {
     return articles;
   }
 
+  async findScheduled(): Promise<Article[]> {
+    return this.prisma.article.findMany({
+      where: {
+        published: false,
+        scheduledAt: {
+          not: null,
+        },
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            picture: true,
+          },
+        },
+      },
+      orderBy: { scheduledAt: 'asc' },
+    });
+  }
+
   findOne(id: string): Promise<Article | null> {
-    return this.prisma.article.findUnique({ where: { id } });
+    return this.prisma.article.findUnique({
+      where: { id },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            picture: true,
+          },
+        },
+      },
+    });
   }
 
   update(id: string, data: Prisma.ArticleUpdateInput): Promise<Article> {
@@ -137,6 +223,18 @@ export class ArticlesService {
       updatedArticle.id,
       updatedArticle.views,
     );
+
+    // Track view event in ClickHouse
+    this.analyticsService
+      .track({
+        event: AnalyticsEventType.POST_VIEW,
+        post_id: id,
+        user_id: userId,
+        metadata: {
+          source: 'app',
+        },
+      })
+      .catch((err) => console.error('Failed to track view:', err));
 
     return updatedArticle;
   }

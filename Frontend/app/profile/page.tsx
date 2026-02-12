@@ -20,6 +20,8 @@ import {
   LogIn,
   Sun,
   BarChart2,
+  Calendar,
+  Eye,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -59,8 +61,46 @@ export default function ProfilePage() {
   const [notifications, setNotifications] = useState(true);
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const { user, logout, isLoading } = useAuth();
+  const { user, token, logout, isLoading } = useAuth();
   const router = useRouter();
+  const [stats, setStats] = useState({
+    publishedCount: 0,
+    scheduledCount: 0,
+    totalLikes: 0,
+    totalViews: 0,
+  });
+
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (user && token) {
+      const fetchStats = () => {
+        const API_URL =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+        fetch(`${API_URL}/analytics/profile/overview`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+          .then((res) => {
+            if (res.ok) return res.json();
+            throw new Error("Failed to fetch stats");
+          })
+          .then((data) => setStats(data))
+          .catch((err) => console.error("Error fetching stats:", err));
+      };
+
+      // Initial fetch
+      fetchStats();
+
+      // Poll every 5 seconds
+      intervalId = setInterval(fetchStats, 5000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [user, token]);
 
   useEffect(() => {
     setMounted(true);
@@ -77,8 +117,16 @@ export default function ProfilePage() {
   }
 
   const activityItems = [
-    { icon: FileText, label: "Published Articles", count: "0" },
-    { icon: Heart, label: "Liked Articles", count: "0" },
+    {
+      icon: FileText,
+      label: "Published Articles",
+      count: stats.publishedCount.toString(),
+    },
+    {
+      icon: Heart,
+      label: "Liked Articles",
+      count: stats.totalLikes.toString(),
+    },
   ];
 
   const generalItems = [
@@ -128,12 +176,11 @@ export default function ProfilePage() {
             <div className="relative mb-4 group">
               <div className="h-24 w-24 overflow-hidden rounded-full ring-4 ring-background shadow-xl">
                 {user.picture ? (
-                  <Image
+                  <img
                     src={user.picture}
                     alt={user.name}
-                    width={96}
-                    height={96}
                     className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
                   />
                 ) : (
                   <div className="h-full w-full bg-primary/10 flex items-center justify-center text-3xl font-bold text-primary">
@@ -179,6 +226,57 @@ export default function ProfilePage() {
       {/* Pro Banner */}
 
       {/* Analytics Banner - Only show for logged in users or consistently */}
+      <div className="grid grid-cols-2 gap-4 mb-8">
+        {[
+          {
+            label: "Published",
+            count: stats.publishedCount,
+            icon: FileText,
+            color: "text-blue-500",
+            bg: "bg-blue-500/10",
+          },
+          {
+            label: "Scheduled",
+            count: stats.scheduledCount,
+            icon: Calendar,
+            color: "text-orange-500",
+            bg: "bg-orange-500/10",
+          },
+          {
+            label: "Total Likes",
+            count: stats.totalLikes,
+            icon: Heart,
+            color: "text-red-500",
+            bg: "bg-red-500/10",
+          },
+          {
+            label: "Total Views",
+            count: stats.totalViews,
+            icon: Eye,
+            color: "text-green-500",
+            bg: "bg-green-500/10",
+          },
+        ].map((item, index) => (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+            key={item.label}
+            className="flex flex-col items-center justify-center rounded-3xl bg-card p-4 border border-border/50 shadow-sm"
+          >
+            <div className={`mb-2 rounded-full p-2 ${item.bg} ${item.color}`}>
+              <item.icon className="h-5 w-5" />
+            </div>
+            <span className="text-2xl font-bold text-foreground">
+              {item.count}
+            </span>
+            <span className="text-xs font-medium text-muted-foreground">
+              {item.label}
+            </span>
+          </motion.div>
+        ))}
+      </div>
+
       {user && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
