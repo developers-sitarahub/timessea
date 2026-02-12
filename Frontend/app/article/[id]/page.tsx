@@ -14,10 +14,10 @@ import {
   Loader2,
   Share,
   ThumbsDown,
-} from "lucide-react"
-import type { Article } from "@/lib/data"
-import { cn } from "@/lib/utils"
-import { AppShell } from "@/components/app-shell"
+} from "lucide-react";
+import type { Article } from "@/lib/data";
+import { cn } from "@/lib/utils";
+import { AppShell } from "@/components/app-shell";
 
 export default function ArticlePage({
   params,
@@ -37,12 +37,13 @@ export default function ArticlePage({
       try {
         const res = await fetch(`http://localhost:5000/api/articles/${id}`);
         if (res.ok) {
-          const data = await res.json()
-          setArticle(data)
-          
+          const data = await res.json();
+          setArticle(data);
+
           // Increment view count
-          fetch(`http://localhost:5000/api/articles/${id}/view`, { method: "POST" })
-            .catch(err => console.error("Failed to increment view", err))
+          fetch(`http://localhost:5000/api/articles/${id}/view`, {
+            method: "POST",
+          }).catch((err) => console.error("Failed to increment view", err));
         } else {
           setArticle(null);
         }
@@ -126,9 +127,8 @@ export default function ArticlePage({
     );
   }
 
-  const paragraphs = article.content.split("\n\n")
+  const paragraphs = article.content.split("\n\n");
 
-  
   return (
     <AppShell>
       {/* Sticky Top Bar */}
@@ -186,61 +186,80 @@ export default function ArticlePage({
 
         {/* Author & Actions - Top Section */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-4 sm:px-0">
-           <div className="flex items-center gap-3">
-              <div className="h-10 w-10 overflow-hidden rounded-full ring-2 ring-background shrink-0">
-                 {article.author?.picture ? (
-                    <img src={article.author.picture} alt={article.author.name} className="h-full w-full object-cover" />
-                 ) : (
-                    <div className="h-full w-full flex items-center justify-center bg-secondary font-bold text-muted-foreground">{article.author?.name?.charAt(0)}</div>
-                 )}
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 overflow-hidden rounded-full ring-2 ring-background shrink-0">
+              {article.author?.picture ? (
+                <img
+                  src={article.author.picture}
+                  alt={article.author.name}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-secondary font-bold text-muted-foreground">
+                  {article.author?.name?.charAt(0)}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">
+                  WRITTEN BY
+                </span>
               </div>
-              <div className="flex flex-col">
-                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider">WRITTEN BY</span>
-                 </div>
-                 <h3 className="font-bold text-foreground text-sm leading-tight">{article.author?.name || "The Hindu Bureau"}</h3>
-                 <p className="text-[10px] text-muted-foreground">{article.author?.email || "sohamsawalakhe@gmail.com"}</p>
-              </div>
-           </div>
+              <h3 className="font-bold text-foreground text-sm leading-tight">
+                {article.author?.name || "The Hindu Bureau"}
+              </h3>
+              <p className="text-[10px] text-muted-foreground">
+                {article.author?.email || "sohamsawalakhe@gmail.com"}
+              </p>
+            </div>
+          </div>
 
-           <div className="flex items-center gap-3 ml-auto sm:ml-0">
-              <button className="rounded-full px-5 py-1.5 text-xs font-bold text-foreground ring-1 ring-border hover:bg-secondary transition-colors">
-                 Follow
-              </button>
-              <button 
-                 onClick={handleBookmark}
-                 className={cn("p-2 rounded-full hover:bg-secondary transition-colors", article.bookmarked ? "text-foreground" : "text-muted-foreground")}
-              >
-                 <Bookmark className={cn("w-5 h-5", article.bookmarked && "fill-current")} />
-              </button>
-           </div>
+          <div className="flex items-center gap-3 ml-auto sm:ml-0">
+            <button className="rounded-full px-5 py-1.5 text-xs font-bold text-foreground ring-1 ring-border hover:bg-secondary transition-colors">
+              Follow
+            </button>
+            <button
+              onClick={handleBookmark}
+              className={cn(
+                "p-2 rounded-full hover:bg-secondary transition-colors",
+                article.bookmarked
+                  ? "text-foreground"
+                  : "text-muted-foreground",
+              )}
+            >
+              <Bookmark
+                className={cn("w-5 h-5", article.bookmarked && "fill-current")}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Updated Time */}
         <div className="mb-4 text-[10px] sm:text-xs text-muted-foreground px-4 sm:px-0">
-           <span>Updated - {article.publishedAt || "1 min read"}</span>
+          <span>Updated - {article.publishedAt || "1 min read"}</span>
         </div>
 
         {/* Main Image */}
         <figure className="mb-8 w-full">
-           <div className="aspect-video w-full overflow-hidden rounded-lg bg-secondary relative mb-2">
-             {article.image ? (
-               <img 
-                 src={article.image} 
-                 alt={article.title} 
-                 className="h-full w-full object-cover" 
-               />
-             ) : (
-               <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-secondary to-muted">
-                  <div className="text-6xl font-black text-foreground/5 font-serif select-none">
-                    {article.title.charAt(0)}
-                  </div>
-               </div>
-             )}
-           </div>
-           <figcaption className="text-[10px] text-muted-foreground font-medium px-1">
-              {article.title} — Photo Credit: Special Arrangement
-           </figcaption>
+          <div className="aspect-video w-full overflow-hidden rounded-lg bg-secondary relative mb-2">
+            {article.image ? (
+              <img
+                src={article.image}
+                alt={article.title}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center bg-linear-to-br from-secondary to-muted">
+                <div className="text-6xl font-black text-foreground/5 font-serif select-none">
+                  {article.title.charAt(0)}
+                </div>
+              </div>
+            )}
+          </div>
+          <figcaption className="text-[10px] text-muted-foreground font-medium px-1">
+            {article.title} — Photo Credit: Special Arrangement
+          </figcaption>
         </figure>
 
         {/* Article Body */}
@@ -256,10 +275,10 @@ export default function ArticlePage({
 
               return (
                 <figure key={index} className="my-8">
-                  <img 
-                    src={src} 
-                    alt={alt || "Article Image"} 
-                    className="w-full rounded-lg shadow-md border border-border/50" 
+                  <img
+                    src={src}
+                    alt={alt || "Article Image"}
+                    className="w-full rounded-lg shadow-md border border-border/50"
                   />
                   {alt && alt !== "Image" && (
                     <figcaption className="mt-2 text-center text-xs font-medium text-muted-foreground">
@@ -273,7 +292,10 @@ export default function ArticlePage({
             if (paragraph.startsWith("**") && paragraph.endsWith("**")) {
               const text = paragraph.replace(/\*\*/g, "");
               return (
-                <h2 key={index} className="text-xl font-bold text-foreground font-serif pt-4">
+                <h2
+                  key={index}
+                  className="text-xl font-bold text-foreground font-serif pt-4"
+                >
                   {text}
                 </h2>
               );
@@ -322,23 +344,26 @@ export default function ArticlePage({
             );
           })}
         </article>
-        
+
         {/* Divider */}
         <div className="h-px w-full bg-border my-8" />
 
-        
         {/* Footer Author & Actions */}
         <div className="mt-10 border-t border-border pt-8">
-           <div className="mb-6">
-              <h3 className="font-black text-foreground text-base uppercase tracking-wider">
-                 {article.author?.name || "THE HINDU BUREAU"}
-              </h3>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1.5 font-medium">
-                 <span>Updated - {article.publishedAt || "February 12, 2026"}</span>
-                 <span className="text-border">|</span>
-                 <span>{article.readTime || "1"} min read</span>
-              </div>
-           </div>
+          <div className="mb-6">
+            <h3 className="font-black text-foreground text-base uppercase tracking-wider">
+              {article.author?.name || "THE HINDU BUREAU"}
+            </h3>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1.5 font-medium">
+              <span>
+                Updated - {article.publishedAt || "February 12, 2026"}
+              </span>
+              <span className="text-border">|</span>
+              <span>{article.readTime || "1"} min read</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Floating Bottom Action Bar */}
       <div className="fixed bottom-6 left-0 right-0 z-50 px-4 pointer-events-none">
@@ -402,6 +427,6 @@ export default function ArticlePage({
           </button>
         </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

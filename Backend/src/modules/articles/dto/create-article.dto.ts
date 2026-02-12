@@ -43,8 +43,9 @@ export class CreateArticleDto {
     email: string;
     avatar?: string;
   };
+
+  @IsOptional()
   scheduledAt?: string | Date;
-  published?: boolean;
 
   @IsOptional()
   @IsBoolean()
