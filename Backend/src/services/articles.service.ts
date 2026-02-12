@@ -77,6 +77,7 @@ export class ArticlesService {
         content: dto.content,
         excerpt: dto.excerpt,
         image: dto.image,
+        media: dto.media as any,
         category: dto.category,
         readTime: dto.readTime,
         authorId: author.id,
@@ -98,7 +99,7 @@ export class ArticlesService {
     };
 
     if (hasMedia) {
-      where.image = { not: null };
+      where.OR = [{ image: { not: null } }, { media: { not: Prisma.DbNull } }];
     }
 
     const articles = await this.prisma.article.findMany({

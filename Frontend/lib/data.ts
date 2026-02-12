@@ -13,6 +13,7 @@ export type Article = {
   readTime: number;
   publishedAt: string;
   image: string;
+  media?: { type: "image" | "video"; url: string; poster?: string }[];
   liked: boolean;
   bookmarked: boolean;
   likes: number;

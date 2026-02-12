@@ -11,5 +11,6 @@ export class CreateArticleDto {
     avatar?: string;
   };
   scheduledAt?: string | Date;
+  media?: { type: 'image' | 'video'; url: string; poster?: string }[];
   published?: boolean;
 }

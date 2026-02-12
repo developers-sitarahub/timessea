@@ -53,6 +53,7 @@ export type ArticleMinAggregateOutputType = {
   readTime: number | null
   image: string | null
   views: number | null
+  location: string | null
   published: boolean | null
   scheduledAt: Date | null
 }
@@ -72,6 +73,7 @@ export type ArticleMaxAggregateOutputType = {
   readTime: number | null
   image: string | null
   views: number | null
+  location: string | null
   published: boolean | null
   scheduledAt: Date | null
 }
@@ -91,6 +93,8 @@ export type ArticleCountAggregateOutputType = {
   readTime: number
   image: number
   views: number
+  media: number
+  location: number
   published: number
   scheduledAt: number
   _all: number
@@ -124,6 +128,7 @@ export type ArticleMinAggregateInputType = {
   readTime?: true
   image?: true
   views?: true
+  location?: true
   published?: true
   scheduledAt?: true
 }
@@ -143,6 +148,7 @@ export type ArticleMaxAggregateInputType = {
   readTime?: true
   image?: true
   views?: true
+  location?: true
   published?: true
   scheduledAt?: true
 }
@@ -162,6 +168,8 @@ export type ArticleCountAggregateInputType = {
   readTime?: true
   image?: true
   views?: true
+  media?: true
+  location?: true
   published?: true
   scheduledAt?: true
   _all?: true
@@ -268,6 +276,8 @@ export type ArticleGroupByOutputType = {
   readTime: number
   image: string | null
   views: number
+  media: runtime.JsonValue | null
+  location: string | null
   published: boolean
   scheduledAt: Date | null
   _count: ArticleCountAggregateOutputType | null
@@ -310,6 +320,8 @@ export type ArticleWhereInput = {
   readTime?: Prisma.IntFilter<"Article"> | number
   image?: Prisma.StringNullableFilter<"Article"> | string | null
   views?: Prisma.IntFilter<"Article"> | number
+  media?: Prisma.JsonNullableFilter<"Article">
+  location?: Prisma.StringNullableFilter<"Article"> | string | null
   published?: Prisma.BoolFilter<"Article"> | boolean
   scheduledAt?: Prisma.DateTimeNullableFilter<"Article"> | Date | string | null
   author?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -330,6 +342,8 @@ export type ArticleOrderByWithRelationInput = {
   readTime?: Prisma.SortOrder
   image?: Prisma.SortOrderInput | Prisma.SortOrder
   views?: Prisma.SortOrder
+  media?: Prisma.SortOrderInput | Prisma.SortOrder
+  location?: Prisma.SortOrderInput | Prisma.SortOrder
   published?: Prisma.SortOrder
   scheduledAt?: Prisma.SortOrderInput | Prisma.SortOrder
   author?: Prisma.UserOrderByWithRelationInput
@@ -353,6 +367,8 @@ export type ArticleWhereUniqueInput = Prisma.AtLeast<{
   readTime?: Prisma.IntFilter<"Article"> | number
   image?: Prisma.StringNullableFilter<"Article"> | string | null
   views?: Prisma.IntFilter<"Article"> | number
+  media?: Prisma.JsonNullableFilter<"Article">
+  location?: Prisma.StringNullableFilter<"Article"> | string | null
   published?: Prisma.BoolFilter<"Article"> | boolean
   scheduledAt?: Prisma.DateTimeNullableFilter<"Article"> | Date | string | null
   author?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -373,6 +389,8 @@ export type ArticleOrderByWithAggregationInput = {
   readTime?: Prisma.SortOrder
   image?: Prisma.SortOrderInput | Prisma.SortOrder
   views?: Prisma.SortOrder
+  media?: Prisma.SortOrderInput | Prisma.SortOrder
+  location?: Prisma.SortOrderInput | Prisma.SortOrder
   published?: Prisma.SortOrder
   scheduledAt?: Prisma.SortOrderInput | Prisma.SortOrder
   _count?: Prisma.ArticleCountOrderByAggregateInput
@@ -400,6 +418,8 @@ export type ArticleScalarWhereWithAggregatesInput = {
   readTime?: Prisma.IntWithAggregatesFilter<"Article"> | number
   image?: Prisma.StringNullableWithAggregatesFilter<"Article"> | string | null
   views?: Prisma.IntWithAggregatesFilter<"Article"> | number
+  media?: Prisma.JsonNullableWithAggregatesFilter<"Article">
+  location?: Prisma.StringNullableWithAggregatesFilter<"Article"> | string | null
   published?: Prisma.BoolWithAggregatesFilter<"Article"> | boolean
   scheduledAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Article"> | Date | string | null
 }
@@ -418,6 +438,8 @@ export type ArticleCreateInput = {
   readTime?: number
   image?: string | null
   views?: number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: string | null
   published?: boolean
   scheduledAt?: Date | string | null
   author: Prisma.UserCreateNestedOneWithoutArticlesInput
@@ -438,6 +460,8 @@ export type ArticleUncheckedCreateInput = {
   readTime?: number
   image?: string | null
   views?: number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: string | null
   published?: boolean
   scheduledAt?: Date | string | null
 }
@@ -456,6 +480,8 @@ export type ArticleUpdateInput = {
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   author?: Prisma.UserUpdateOneRequiredWithoutArticlesNestedInput
@@ -476,6 +502,8 @@ export type ArticleUncheckedUpdateInput = {
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
@@ -495,6 +523,8 @@ export type ArticleCreateManyInput = {
   readTime?: number
   image?: string | null
   views?: number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: string | null
   published?: boolean
   scheduledAt?: Date | string | null
 }
@@ -513,6 +543,8 @@ export type ArticleUpdateManyMutationInput = {
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
@@ -532,6 +564,8 @@ export type ArticleUncheckedUpdateManyInput = {
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
@@ -561,6 +595,8 @@ export type ArticleCountOrderByAggregateInput = {
   readTime?: Prisma.SortOrder
   image?: Prisma.SortOrder
   views?: Prisma.SortOrder
+  media?: Prisma.SortOrder
+  location?: Prisma.SortOrder
   published?: Prisma.SortOrder
   scheduledAt?: Prisma.SortOrder
 }
@@ -586,6 +622,7 @@ export type ArticleMaxOrderByAggregateInput = {
   readTime?: Prisma.SortOrder
   image?: Prisma.SortOrder
   views?: Prisma.SortOrder
+  location?: Prisma.SortOrder
   published?: Prisma.SortOrder
   scheduledAt?: Prisma.SortOrder
 }
@@ -605,6 +642,7 @@ export type ArticleMinOrderByAggregateInput = {
   readTime?: Prisma.SortOrder
   image?: Prisma.SortOrder
   views?: Prisma.SortOrder
+  location?: Prisma.SortOrder
   published?: Prisma.SortOrder
   scheduledAt?: Prisma.SortOrder
 }
@@ -687,6 +725,8 @@ export type ArticleCreateWithoutAuthorInput = {
   readTime?: number
   image?: string | null
   views?: number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: string | null
   published?: boolean
   scheduledAt?: Date | string | null
 }
@@ -705,6 +745,8 @@ export type ArticleUncheckedCreateWithoutAuthorInput = {
   readTime?: number
   image?: string | null
   views?: number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: string | null
   published?: boolean
   scheduledAt?: Date | string | null
 }
@@ -753,6 +795,8 @@ export type ArticleScalarWhereInput = {
   readTime?: Prisma.IntFilter<"Article"> | number
   image?: Prisma.StringNullableFilter<"Article"> | string | null
   views?: Prisma.IntFilter<"Article"> | number
+  media?: Prisma.JsonNullableFilter<"Article">
+  location?: Prisma.StringNullableFilter<"Article"> | string | null
   published?: Prisma.BoolFilter<"Article"> | boolean
   scheduledAt?: Prisma.DateTimeNullableFilter<"Article"> | Date | string | null
 }
@@ -771,6 +815,8 @@ export type ArticleCreateManyAuthorInput = {
   readTime?: number
   image?: string | null
   views?: number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: string | null
   published?: boolean
   scheduledAt?: Date | string | null
 }
@@ -789,6 +835,8 @@ export type ArticleUpdateWithoutAuthorInput = {
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
@@ -807,6 +855,8 @@ export type ArticleUncheckedUpdateWithoutAuthorInput = {
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
@@ -825,6 +875,8 @@ export type ArticleUncheckedUpdateManyWithoutAuthorInput = {
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
+  media?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   published?: Prisma.BoolFieldUpdateOperationsInput | boolean
   scheduledAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
 }
@@ -846,6 +898,8 @@ export type ArticleSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   readTime?: boolean
   image?: boolean
   views?: boolean
+  media?: boolean
+  location?: boolean
   published?: boolean
   scheduledAt?: boolean
   author?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -866,6 +920,8 @@ export type ArticleSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   readTime?: boolean
   image?: boolean
   views?: boolean
+  media?: boolean
+  location?: boolean
   published?: boolean
   scheduledAt?: boolean
   author?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -886,6 +942,8 @@ export type ArticleSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   readTime?: boolean
   image?: boolean
   views?: boolean
+  media?: boolean
+  location?: boolean
   published?: boolean
   scheduledAt?: boolean
   author?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -906,11 +964,13 @@ export type ArticleSelectScalar = {
   readTime?: boolean
   image?: boolean
   views?: boolean
+  media?: boolean
+  location?: boolean
   published?: boolean
   scheduledAt?: boolean
 }
 
-export type ArticleOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "content" | "authorId" | "createdAt" | "updatedAt" | "bookmarked" | "category" | "excerpt" | "liked" | "likes" | "readTime" | "image" | "views" | "published" | "scheduledAt", ExtArgs["result"]["article"]>
+export type ArticleOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "content" | "authorId" | "createdAt" | "updatedAt" | "bookmarked" | "category" | "excerpt" | "liked" | "likes" | "readTime" | "image" | "views" | "media" | "location" | "published" | "scheduledAt", ExtArgs["result"]["article"]>
 export type ArticleInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   author?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -941,6 +1001,8 @@ export type $ArticlePayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     readTime: number
     image: string | null
     views: number
+    media: runtime.JsonValue | null
+    location: string | null
     published: boolean
     scheduledAt: Date | null
   }, ExtArgs["result"]["article"]>
@@ -1381,6 +1443,8 @@ export interface ArticleFieldRefs {
   readonly readTime: Prisma.FieldRef<"Article", 'Int'>
   readonly image: Prisma.FieldRef<"Article", 'String'>
   readonly views: Prisma.FieldRef<"Article", 'Int'>
+  readonly media: Prisma.FieldRef<"Article", 'Json'>
+  readonly location: Prisma.FieldRef<"Article", 'String'>
   readonly published: Prisma.FieldRef<"Article", 'Boolean'>
   readonly scheduledAt: Prisma.FieldRef<"Article", 'DateTime'>
 }
