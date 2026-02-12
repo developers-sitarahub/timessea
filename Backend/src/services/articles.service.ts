@@ -93,16 +93,16 @@ export class ArticlesService {
 
   async findAll(limit = 20, offset = 0, hasMedia = false): Promise<Article[]> {
     const start = Date.now();
-    const where: Prisma.ArticleWhereInput = {};
+    const where: Prisma.ArticleWhereInput = {
+      published: true,
+    };
 
     if (hasMedia) {
       where.image = { not: null };
     }
 
     const articles = await this.prisma.article.findMany({
-      where: {
-        published: true,
-      },
+      where,
       take: limit,
       skip: offset,
       include: {
