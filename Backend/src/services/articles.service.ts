@@ -105,7 +105,6 @@ export class ArticlesService {
       },
       take: limit,
       skip: offset,
-      where,
       include: {
         author: {
           select: {
