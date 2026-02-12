@@ -10,11 +10,11 @@ import {
 export class CreateArticleDto {
   @IsNotEmpty()
   @IsString()
-  title?: string;
+  title!: string;
 
   @IsNotEmpty()
   @IsString()
-  content?: string;
+  content!: string;
 
   @IsOptional()
   @IsString()
