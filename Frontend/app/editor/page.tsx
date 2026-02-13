@@ -61,12 +61,6 @@ export default function EditorPage() {
   const [scheduledAt, setScheduledAt] = useState<string>("");
   const [showScheduleInput, setShowScheduleInput] = useState(false);
 
-  const [user, setUser] = useState<{
-    name: string;
-    email: string;
-    picture?: string;
-  } | null>(null);
-
   // Tab state for Editor vs Scheduled
   const [activeTab, setActiveTab] = useState<"editor" | "scheduled">("editor");
   const [scheduledPosts, setScheduledPosts] = useState<any[]>([]);
@@ -84,7 +78,7 @@ export default function EditorPage() {
 
   // Auth overlay state
   const [showLoginOverlay, setShowLoginOverlay] = useState(false);
-  const { isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
 
   // Article types
   const articleTypes = [
@@ -106,17 +100,6 @@ export default function EditorPage() {
     { icon: Link2, label: "Link", action: "[](url)" },
     { icon: ImagePlus, label: "Image", action: "image" },
   ];
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error("Failed to parse user from local storage", e);
-      }
-    }
-  }, []);
 
   // Load draft if draft ID is present
   useEffect(() => {
