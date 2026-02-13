@@ -139,7 +139,7 @@ function CommentItem({
               <Heart className="w-3 h-3" strokeWidth={2} />
               {comment.likes > 0 && comment.likes}
             </button>
-            
+
             <button
               onClick={() => {
                 if (!token) onAuthRequired();
@@ -196,7 +196,8 @@ function CommentItem({
               className="ml-10 flex items-center gap-1 text-[11px] font-bold text-primary hover:text-primary/80 transition-colors py-1"
             >
               <ChevronDown className="w-3 h-3" />
-              View {comment.replies.length} {comment.replies.length === 1 ? "reply" : "replies"}
+              View {comment.replies.length}{" "}
+              {comment.replies.length === 1 ? "reply" : "replies"}
             </button>
           ) : (
             <>
@@ -258,8 +259,14 @@ export default function ArticlePage({
       fetch(`${API_URL}/api/articles/${id}/read`, {
         method: "POST",
       })
-      .then(res => res.ok && setArticle(prev => prev ? { ...prev, reads: (prev.reads || 0) + 1 } : null))
-      .catch((err) => console.error("Failed to increment read", err));
+        .then(
+          (res) =>
+            res.ok &&
+            setArticle((prev) =>
+              prev ? { ...prev, reads: (prev.reads || 0) + 1 } : null,
+            ),
+        )
+        .catch((err) => console.error("Failed to increment read", err));
     }, 60000); // 60 seconds
 
     return () => clearTimeout(timer);
@@ -270,7 +277,9 @@ export default function ArticlePage({
     async function fetchArticle() {
       try {
         // Increment view immediately
-        fetch(`${API_URL}/api/articles/${id}/view`, { method: "POST" }).catch(() => {});
+        fetch(`${API_URL}/api/articles/${id}/view`, { method: "POST" }).catch(
+          () => {},
+        );
 
         const res = await fetch(`${API_URL}/api/articles/${id}`);
         if (res.ok) {
@@ -306,11 +315,17 @@ export default function ArticlePage({
       if (res.ok) {
         const data = await res.json();
         setComments(data);
-        setCommentCount(data.reduce((acc: number, c: CommentType) => {
-          const countReplies = (comment: CommentType): number =>
-            1 + (comment.replies?.reduce((s: number, r: CommentType) => s + countReplies(r), 0) || 0);
-          return acc + countReplies(c);
-        }, 0));
+        setCommentCount(
+          data.reduce((acc: number, c: CommentType) => {
+            const countReplies = (comment: CommentType): number =>
+              1 +
+              (comment.replies?.reduce(
+                (s: number, r: CommentType) => s + countReplies(r),
+                0,
+              ) || 0);
+            return acc + countReplies(c);
+          }, 0),
+        );
       }
     } catch (err) {
       console.error("Failed to fetch comments", err);
@@ -332,20 +347,20 @@ export default function ArticlePage({
       return;
     }
     if (!article) return;
-    
+
     const originalLiked = article.liked;
     const originalLikes = article.likes;
     const originalDisliked = article.disliked;
     const originalDislikes = article.dislikes || 0;
 
     const willLike = !originalLiked;
-    
+
     // Mutual exclusivity
     let newDislikes = originalDislikes;
     if (willLike && originalDisliked) {
       newDislikes = Math.max(0, originalDislikes - 1);
     }
-    
+
     // Optimistic update
     setArticle({
       ...article,
@@ -362,12 +377,12 @@ export default function ArticlePage({
     } catch (e) {
       console.error("Failed to like", e);
       // Revert logic
-      setArticle({ 
-        ...article, 
-        liked: originalLiked, 
-        likes: originalLikes, 
+      setArticle({
+        ...article,
+        liked: originalLiked,
+        likes: originalLikes,
         disliked: originalDisliked,
-        dislikes: originalDislikes 
+        dislikes: originalDislikes,
       });
     }
   };
@@ -383,7 +398,7 @@ export default function ArticlePage({
     const originalLikes = article.likes;
     const originalDisliked = article.disliked;
     const originalDislikes = article.dislikes || 0;
-    
+
     const willDislike = !originalDisliked;
 
     // Mutual exclusivity
@@ -391,12 +406,14 @@ export default function ArticlePage({
     if (willDislike && originalLiked) {
       newLikes = Math.max(0, originalLikes - 1);
     }
-    
+
     // Optimistic update
     setArticle({
       ...article,
       disliked: willDislike,
-      dislikes: willDislike ? originalDislikes + 1 : Math.max(0, originalDislikes - 1),
+      dislikes: willDislike
+        ? originalDislikes + 1
+        : Math.max(0, originalDislikes - 1),
       liked: willDislike ? false : originalLiked,
       likes: newLikes,
     });
@@ -413,7 +430,7 @@ export default function ArticlePage({
         disliked: originalDisliked,
         dislikes: originalDislikes,
         liked: originalLiked,
-        likes: originalLikes
+        likes: originalLikes,
       });
     }
   };
@@ -499,7 +516,7 @@ export default function ArticlePage({
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
       if (res.ok) {
         await fetchComments();
@@ -512,10 +529,9 @@ export default function ArticlePage({
   // Like a comment
   const handleLikeComment = async (commentId: string) => {
     try {
-      await fetch(
-        `${API_URL}/api/articles/${id}/comments/${commentId}/like`,
-        { method: "POST" }
-      );
+      await fetch(`${API_URL}/api/articles/${id}/comments/${commentId}/like`, {
+        method: "POST",
+      });
       await fetchComments();
     } catch (e) {
       console.error("Failed to like comment", e);
@@ -525,47 +541,47 @@ export default function ArticlePage({
   if (loading) {
     return (
       <AppShell>
-         <div className="mx-auto max-w-2xl px-5 pt-8 pb-20 animate-pulse">
-           {/* Header */}
-           <div className="flex justify-between items-center mb-6">
-             <div className="h-8 w-8 bg-muted rounded-full" />
-             <div className="flex gap-2">
-               <div className="h-8 w-8 bg-muted rounded-full" />
-               <div className="h-8 w-8 bg-muted rounded-full" />
-             </div>
-           </div>
-           
-           {/* Category */}
-           <div className="h-3 w-16 bg-muted mb-4" />
-           
-           {/* Title */}
-           <div className="h-8 w-full bg-muted rounded mb-2" />
-           <div className="h-8 w-3/4 bg-muted rounded mb-6" />
-           
-           {/* Author */}
-           <div className="flex items-center gap-3 mb-6">
-             <div className="h-10 w-10 bg-muted rounded-full" />
-             <div className="space-y-2">
-               <div className="h-3 w-32 bg-muted rounded" />
-               <div className="h-2 w-24 bg-muted rounded" />
-             </div>
-           </div>
-           
-           {/* Meta */}
-           <div className="h-8 w-full bg-muted rounded mb-6" />
-           
-           {/* Image */}
-           <div className="aspect-video w-full bg-muted rounded-xl mb-8" />
-           
-           {/* Content */}
-           <div className="space-y-4">
-             <div className="h-4 w-full bg-muted rounded" />
-             <div className="h-4 w-full bg-muted rounded" />
-             <div className="h-4 w-5/6 bg-muted rounded" />
-             <div className="h-4 w-full bg-muted rounded" />
-             <div className="h-4 w-4/6 bg-muted rounded" />
-           </div>
-         </div>
+        <div className="mx-auto max-w-2xl px-5 pt-8 pb-20 animate-pulse">
+          {/* Header */}
+          <div className="flex justify-between items-center mb-6">
+            <div className="h-8 w-8 bg-muted rounded-full" />
+            <div className="flex gap-2">
+              <div className="h-8 w-8 bg-muted rounded-full" />
+              <div className="h-8 w-8 bg-muted rounded-full" />
+            </div>
+          </div>
+
+          {/* Category */}
+          <div className="h-3 w-16 bg-muted mb-4" />
+
+          {/* Title */}
+          <div className="h-8 w-full bg-muted rounded mb-2" />
+          <div className="h-8 w-3/4 bg-muted rounded mb-6" />
+
+          {/* Author */}
+          <div className="flex items-center gap-3 mb-6">
+            <div className="h-10 w-10 bg-muted rounded-full" />
+            <div className="space-y-2">
+              <div className="h-3 w-32 bg-muted rounded" />
+              <div className="h-2 w-24 bg-muted rounded" />
+            </div>
+          </div>
+
+          {/* Meta */}
+          <div className="h-8 w-full bg-muted rounded mb-6" />
+
+          {/* Image */}
+          <div className="aspect-video w-full bg-muted rounded-xl mb-8" />
+
+          {/* Content */}
+          <div className="space-y-4">
+            <div className="h-4 w-full bg-muted rounded" />
+            <div className="h-4 w-full bg-muted rounded" />
+            <div className="h-4 w-5/6 bg-muted rounded" />
+            <div className="h-4 w-full bg-muted rounded" />
+            <div className="h-4 w-4/6 bg-muted rounded" />
+          </div>
+        </div>
       </AppShell>
     );
   }
@@ -598,15 +614,25 @@ export default function ArticlePage({
     // Remove raw base64 data URIs that might be standalone
     cleaned = cleaned.replace(/data:image\/[^\s"'<>)]+/g, "");
     // Remove standalone image URLs on their own line
-    cleaned = cleaned.replace(/^https?:\/\/\S+\.(jpg|jpeg|png|gif|webp|svg)\S*$/gim, "");
+    cleaned = cleaned.replace(
+      /^https?:\/\/\S+\.(jpg|jpeg|png|gif|webp|svg)\S*$/gim,
+      "",
+    );
     // Clean up excessive whitespace
     cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
     return cleaned.trim();
   };
 
   // Parse content into segments: text paragraphs and images (preserving order)
-  const parseContent = (content: string): Array<{ type: "text"; text: string } | { type: "image"; src: string; alt: string }> => {
-    const segments: Array<{ type: "text"; text: string } | { type: "image"; src: string; alt: string }> = [];
+  const parseContent = (
+    content: string,
+  ): Array<
+    { type: "text"; text: string } | { type: "image"; src: string; alt: string }
+  > => {
+    const segments: Array<
+      | { type: "text"; text: string }
+      | { type: "image"; src: string; alt: string }
+    > = [];
     // Split by markdown image pattern, capturing the image parts
     // Pattern: ![alt](src) where src can be anything including base64
     const parts = content.split(/(!\[.*?\]\([^)]*\))/);
@@ -635,7 +661,6 @@ export default function ArticlePage({
     : article.excerpt
       ? stripImageMarkdown(article.excerpt)
       : "";
-
 
   // Format date
   const formatDate = (dateStr?: string) => {
@@ -720,14 +745,20 @@ export default function ArticlePage({
         </div>
 
         {/* ── Section 2: HEADING (Title) ── */}
-        <h1 className="mb-3 text-[26px] sm:text-[32px] font-black leading-[1.15] tracking-tight text-foreground px-1" style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
+        <h1
+          className="mb-3 text-[26px] sm:text-[32px] font-black leading-[1.15] tracking-tight text-foreground px-1"
+          style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
+        >
           {article.title}
         </h1>
 
         {/* ── Section 3: SUMMARY / Subheadline ── */}
         {/* Show cleaned subheadline or excerpt — never show raw image URLs */}
         {cleanExcerpt && (
-          <p className="mb-5 text-[15px] sm:text-[17px] leading-relaxed text-foreground/70 px-1" style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}>
+          <p
+            className="mb-5 text-[15px] sm:text-[17px] leading-relaxed text-foreground/70 px-1"
+            style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
+          >
             {cleanExcerpt}
           </p>
         )}
@@ -758,11 +789,15 @@ export default function ArticlePage({
                 {article.location && (
                   <>
                     <MapPin className="w-3 h-3" strokeWidth={2} />
-                    <span className="font-semibold uppercase tracking-wide">{article.location}</span>
+                    <span className="font-semibold uppercase tracking-wide">
+                      {article.location}
+                    </span>
                     <span className="text-border">•</span>
                   </>
                 )}
-                <span>{formatDate(article.createdAt || article.publishedAt)}</span>
+                <span>
+                  {formatDate(article.createdAt || article.publishedAt)}
+                </span>
                 {formatTime(article.createdAt) && (
                   <>
                     <span className="text-border">•</span>
@@ -805,7 +840,10 @@ export default function ArticlePage({
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-secondary to-muted">
-                <div className="text-7xl font-black text-foreground/5 select-none" style={{ fontFamily: "'Georgia', serif" }}>
+                <div
+                  className="text-7xl font-black text-foreground/5 select-none"
+                  style={{ fontFamily: "'Georgia', serif" }}
+                >
                   {article.title.charAt(0)}
                 </div>
               </div>
@@ -817,13 +855,19 @@ export default function ArticlePage({
               <p className="text-[12px] leading-relaxed text-muted-foreground">
                 {article.imageCaption}
                 {article.imageCredit && (
-                  <span className="text-muted-foreground/70"> | Photo Credit: {article.imageCredit}</span>
+                  <span className="text-muted-foreground/70">
+                    {" "}
+                    | Photo Credit: {article.imageCredit}
+                  </span>
                 )}
               </p>
             ) : (
               <p className="text-[12px] leading-relaxed text-muted-foreground italic">
                 {article.title}
-                <span className="text-muted-foreground/70 not-italic"> | Photo: Special Arrangement</span>
+                <span className="text-muted-foreground/70 not-italic">
+                  {" "}
+                  | Photo: Special Arrangement
+                </span>
               </p>
             )}
           </figcaption>
@@ -835,7 +879,11 @@ export default function ArticlePage({
             // ── Image segment: render as figure ──
             if (segment.type === "image") {
               return (
-                <figure key={`img-${index}`} className="my-6 mx-auto" style={{ maxWidth: '85%' }}>
+                <figure
+                  key={`img-${index}`}
+                  className="my-6 mx-auto"
+                  style={{ maxWidth: "85%" }}
+                >
                   <div className="overflow-hidden rounded-md border border-border/30 shadow-sm">
                     <img
                       src={segment.src}
@@ -843,17 +891,21 @@ export default function ArticlePage({
                       className="w-full h-auto object-cover"
                     />
                   </div>
-                  {segment.alt && segment.alt !== "Image" && segment.alt !== "Article Image" && (
-                    <figcaption className="mt-1.5 text-[11px] text-muted-foreground text-center leading-relaxed italic">
-                      {segment.alt}
-                    </figcaption>
-                  )}
+                  {segment.alt &&
+                    segment.alt !== "Image" &&
+                    segment.alt !== "Article Image" && (
+                      <figcaption className="mt-1.5 text-[11px] text-muted-foreground text-center leading-relaxed italic">
+                        {segment.alt}
+                      </figcaption>
+                    )}
                 </figure>
               );
             }
 
             // ── Text segment: split into paragraphs ──
-            const textParagraphs = segment.text.split("\n\n").filter((p) => p.trim());
+            const textParagraphs = segment.text
+              .split("\n\n")
+              .filter((p) => p.trim());
             return textParagraphs.map((paragraph, pIdx) => {
               const globalKey = `${index}-${pIdx}`;
 
@@ -867,7 +919,9 @@ export default function ArticlePage({
                   <h2
                     key={globalKey}
                     className="text-lg font-black text-foreground pt-3 pb-1 tracking-tight"
-                    style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
+                    style={{
+                      fontFamily: "'Georgia', 'Times New Roman', serif",
+                    }}
                   >
                     {text}
                   </h2>
@@ -881,7 +935,9 @@ export default function ArticlePage({
                   <h2
                     key={globalKey}
                     className="text-xl font-black text-foreground pt-5 pb-1.5 tracking-tight"
-                    style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
+                    style={{
+                      fontFamily: "'Georgia', 'Times New Roman', serif",
+                    }}
                   >
                     {text}
                   </h2>
@@ -895,7 +951,9 @@ export default function ArticlePage({
                   <blockquote
                     key={globalKey}
                     className="border-l-3 border-red-600 dark:border-red-400 pl-4 py-2 my-5 text-[17px] font-medium text-foreground/85 leading-relaxed"
-                    style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
+                    style={{
+                      fontFamily: "'Georgia', 'Times New Roman', serif",
+                    }}
                   >
                     <span className="italic">&ldquo;{text}&rdquo;</span>
                   </blockquote>
@@ -1008,11 +1066,19 @@ export default function ArticlePage({
                 onClick={handleLike}
                 className={cn(
                   "flex items-center gap-1.5 text-[13px] font-medium transition-all group",
-                  article.liked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
+                  article.liked
+                    ? "text-red-500"
+                    : "text-muted-foreground hover:text-red-500",
                 )}
                 aria-label={article.liked ? "Unlike" : "Like"}
               >
-                <Heart className={cn("w-5 h-5 transition-transform group-active:scale-125", article.liked && "fill-current")} strokeWidth={1.8} />
+                <Heart
+                  className={cn(
+                    "w-5 h-5 transition-transform group-active:scale-125",
+                    article.liked && "fill-current",
+                  )}
+                  strokeWidth={1.8}
+                />
                 {article.likes > 0 && article.likes}
               </button>
 
@@ -1021,11 +1087,19 @@ export default function ArticlePage({
                 onClick={handleDislike}
                 className={cn(
                   "flex items-center gap-1.5 text-[13px] font-medium transition-all group",
-                  article.disliked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                  article.disliked
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 aria-label={article.disliked ? "Remove dislike" : "Dislike"}
               >
-                <ThumbsDown className={cn("w-5 h-5 transition-transform group-active:scale-125", article.disliked && "fill-current")} strokeWidth={1.8} />
+                <ThumbsDown
+                  className={cn(
+                    "w-5 h-5 transition-transform group-active:scale-125",
+                    article.disliked && "fill-current",
+                  )}
+                  strokeWidth={1.8}
+                />
                 {(article.dislikes || 0) > 0 && article.dislikes}
               </button>
 
@@ -1034,12 +1108,21 @@ export default function ArticlePage({
                 onClick={handleToggleComments}
                 className={cn(
                   "flex items-center gap-1.5 text-[13px] font-medium transition-all group",
-                  showCommentSection ? "text-primary" : "text-muted-foreground hover:text-primary"
+                  showCommentSection
+                    ? "text-primary"
+                    : "text-muted-foreground hover:text-primary",
                 )}
                 aria-label="Comment"
               >
-                <MessageCircle className={cn("w-5 h-5 transition-transform group-active:scale-125", showCommentSection && "fill-primary/10")} strokeWidth={1.8} />
-                {commentCount > 0 ? commentCount : ""} Comment{commentCount !== 1 ? "s" : ""}
+                <MessageCircle
+                  className={cn(
+                    "w-5 h-5 transition-transform group-active:scale-125",
+                    showCommentSection && "fill-primary/10",
+                  )}
+                  strokeWidth={1.8}
+                />
+                {commentCount > 0 ? commentCount : ""} Comment
+                {commentCount !== 1 ? "s" : ""}
               </button>
             </div>
             <button
@@ -1047,7 +1130,10 @@ export default function ArticlePage({
               className="flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors group"
               aria-label="Share"
             >
-              <Share2 className="w-5 h-5 transition-transform group-active:scale-125" strokeWidth={1.8} />
+              <Share2
+                className="w-5 h-5 transition-transform group-active:scale-125"
+                strokeWidth={1.8}
+              />
               Share
             </button>
           </div>
@@ -1059,7 +1145,12 @@ export default function ArticlePage({
               <div className="flex items-start gap-2.5 mb-4">
                 <div className="h-8 w-8 rounded-full bg-secondary shrink-0 overflow-hidden ring-1 ring-border/30">
                   {user?.picture ? (
-                    <img src={user.picture} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
+                    <img
+                      src={user.picture}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
                   ) : (
                     <div className="h-full w-full flex items-center justify-center text-xs font-bold text-muted-foreground">
                       {user?.name?.charAt(0) || "U"}
@@ -1122,7 +1213,7 @@ export default function ArticlePage({
           )}
         </div>
       </div>
-      
+
       <AuthPromptModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}
@@ -1132,17 +1223,25 @@ export default function ArticlePage({
   );
 }
 
-function AuthPromptModal({ isOpen, onClose, onLogin }: { isOpen: boolean; onClose: () => void; onLogin: () => void }) {
+function AuthPromptModal({
+  isOpen,
+  onClose,
+  onLogin,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onLogin: () => void;
+}) {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div 
+      <div
         className="w-full max-w-sm overflow-hidden rounded-3xl bg-card border border-border/50 shadow-2xl animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="relative p-6 text-center">
-          <button 
-            onClick={onClose} 
+          <button
+            onClick={onClose}
             className="absolute right-4 top-4 p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-secondary/50 transition-colors"
             aria-label="Close"
           >
@@ -1151,9 +1250,12 @@ function AuthPromptModal({ isOpen, onClose, onLogin }: { isOpen: boolean; onClos
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary rotate-3">
             <User className="h-8 w-8" />
           </div>
-          <h3 className="mb-2 text-xl font-black text-foreground font-serif">Sign in to interact</h3>
+          <h3 className="mb-2 text-xl font-black text-foreground font-serif">
+            Sign in to interact
+          </h3>
           <p className="mb-6 text-sm text-muted-foreground leading-relaxed font-medium">
-            Join our community to like, comment, and engage with the author and other readers on this story.
+            Join our community to like, comment, and engage with the author and
+            other readers on this story.
           </p>
           <div className="flex flex-col gap-3">
             <button

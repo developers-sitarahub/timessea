@@ -6,7 +6,6 @@ export type Article = {
   author: {
     id?: string;
     name: string;
-    avatar: string;
     email: string;
     picture?: string;
   };
@@ -26,11 +25,19 @@ export type Article = {
 
   subheadline?: string;
   location?: string;
-  type?: "Breaking" | "Live" | "Exclusive" | "Opinion" | "Analysis" | "Standard" | "Feature";
+  type?:
+    | "Breaking"
+    | "Live"
+    | "Exclusive"
+    | "Opinion"
+    | "Analysis"
+    | "Standard"
+    | "Feature";
   status?: "Draft" | "In Review" | "Approved" | "Published" | "Corrected";
   section?: string;
   tags?: string[];
   imageCaption?: string;
+  imageDescription?: string;
   imageCredit?: string;
   imageSource?: string;
   seoTitle?: string;
@@ -77,7 +84,6 @@ The regulatory landscape is also evolving. Governments worldwide are grappling w
 The future of Web 3 likely lies not in replacing existing systems entirely, but in complementing them. Hybrid approaches that combine the best of centralized and decentralized technologies will probably define the next decade of internet evolution.`,
     author: {
       name: "Josh Brian",
-      avatar: "JB",
       email: "josh@blogify.com",
     },
     category: "Tech",
@@ -95,7 +101,8 @@ The future of Web 3 likely lies not in replacing existing systems entirely, but 
   {
     id: "2",
     title: "Guiding Teams: The Power of Leadership",
-    subheadline: "How empathy and trust transform managers into inspiring leaders.",
+    subheadline:
+      "How empathy and trust transform managers into inspiring leaders.",
     excerpt:
       "Leadership is not about authority, it's about empowering your team to achieve shared goals.",
     content: `Leadership is not about authority, it's about empowering your team to achieve shared goals. Great leaders inspire trust, cultivate collaboration, and lead by example.
@@ -117,7 +124,6 @@ Great leaders know when to step back. Delegation isn't just about distributing w
 In today's rapidly evolving landscape, adaptability is perhaps the most crucial leadership trait. Leaders who embrace change, remain curious, and continuously learn set the tone for their entire organization.`,
     author: {
       name: "Alan Muller",
-      avatar: "AM",
       email: "alan@blogify.com",
     },
     category: "Business",
@@ -139,7 +145,8 @@ In today's rapidly evolving landscape, adaptability is perhaps the most crucial 
   {
     id: "3",
     title: "The Art of Minimalist Design",
-    subheadline: "Why simplicity is the ultimate sophistication in modern UI/UX.",
+    subheadline:
+      "Why simplicity is the ultimate sophistication in modern UI/UX.",
     excerpt:
       "How stripping away the unnecessary reveals the essential beauty in design.",
     content: `Minimalism in design is more than an aesthetic choice -- it's a philosophy that puts function and clarity at the forefront of every decision.
@@ -163,7 +170,6 @@ In minimalist design, every color choice carries weight. A limited palette force
 When you strip away decorative elements, typography becomes the primary vehicle for visual interest. The choice of typeface, weight, spacing, and size becomes critical in establishing mood and hierarchy.`,
     author: {
       name: "Sarah Chen",
-      avatar: "SC",
       email: "sarah@blogify.com",
     },
     category: "Design",
@@ -184,7 +190,8 @@ When you strip away decorative elements, typography becomes the primary vehicle 
   {
     id: "4",
     title: "Quantum Computing: A New Era",
-    subheadline: "From theoretical physics to practical applications: What you need to know.",
+    subheadline:
+      "From theoretical physics to practical applications: What you need to know.",
     excerpt:
       "Understanding the revolutionary potential of quantum computing and its real-world applications.",
     content: `Quantum computing stands at the frontier of computational science, promising to solve problems that classical computers find intractable.
@@ -204,7 +211,6 @@ The applications of quantum computing extend far beyond academic curiosity. Drug
 While fully fault-tolerant quantum computers may still be years away, hybrid quantum-classical approaches are already delivering results. The next decade will likely see quantum computing move from laboratory curiosity to practical business tool.`,
     author: {
       name: "Dr. Elena Voss",
-      avatar: "EV",
       email: "elena@blogify.com",
     },
     category: "Science",
@@ -242,7 +248,6 @@ One of the biggest challenges of distributed work is maintaining company culture
 Most organizations are landing on a hybrid model that combines the flexibility of remote work with the benefits of in-person collaboration. The key is finding the right balance for each team and context.`,
     author: {
       name: "Marcus Johnson",
-      avatar: "MJ",
       email: "marcus@blogify.com",
     },
     category: "Business",
@@ -261,7 +266,8 @@ Most organizations are landing on a hybrid model that combines the flexibility o
   {
     id: "6",
     title: "The Rise of AI-Generated Art",
-    subheadline: "Creativity or Computation? The legal and ethical battleground.",
+    subheadline:
+      "Creativity or Computation? The legal and ethical battleground.",
     excerpt:
       "Exploring the intersection of artificial intelligence and creative expression.",
     content: `AI-generated art has sparked one of the most heated debates in the creative world. As models become increasingly sophisticated, the line between human and machine creativity continues to blur.
@@ -279,7 +285,6 @@ The rise of AI art raises important questions about copyright, attribution, and 
 The most exciting possibilities lie not in AI replacing human creativity, but in augmenting it. The collaboration between human intuition and machine capability promises to unlock entirely new forms of artistic expression.`,
     author: {
       name: "Nina Patel",
-      avatar: "NP",
       email: "nina@blogify.com",
     },
     category: "Culture",

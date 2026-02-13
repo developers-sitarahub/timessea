@@ -1,0 +1,54 @@
+  const handleSaveDraft = async () => {
+    if (!isAuthenticated) {
+      setShowLoginOverlay(true);
+      return;
+    }
+    setIsSavingDraft(true);
+
+    try {
+      const response = await fetch("http://localhost:5000/api/articles", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: title || "Untitled Draft",
+          content: fullContent || "No content",
+          image:
+            imageUrl || blocks.find((b) => b.type === "image")?.content || "",
+          excerpt: fullContent.substring(0, 150) + "...",
+          category: selectedCategory || "General",
+          readTime,
+          author: {
+            name: user?.name || "Anonymous",
+            avatar: user?.picture || user?.name?.charAt(0) || "A",
+            email: user?.email || "anonymous@example.com",
+          },
+          subheadline,
+          location,
+          type: articleType,
+          status,
+          imageCaption,
+          imageCredit,
+          seoTitle,
+          seoDescription,
+          factChecked,
+          published: false, // Draft = not published
+          scheduledAt: null, // Draft = not scheduled
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to save draft");
+      }
+
+      setSaved(true);
+      setTimeout(() => {
+        setSaved(false);
+      }, 2000);
+    } catch (error) {
+      console.error("Error saving draft:", error);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };

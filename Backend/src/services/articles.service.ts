@@ -84,6 +84,14 @@ export class ArticlesService {
         authorId: author.id,
         scheduledAt: dto.scheduledAt ? new Date(dto.scheduledAt) : null,
         published: dto.published !== undefined ? dto.published : true,
+        imageDescription: dto.imageDescription,
+        imageCaption: dto.imageCaption,
+        imageCredit: dto.imageCredit,
+        subheadline: dto.subheadline,
+        type: dto.type,
+        seoTitle: dto.seoTitle,
+        seoDescription: dto.seoDescription,
+        factChecked: dto.factChecked,
       },
       include: { author: true },
     });
@@ -142,6 +150,32 @@ export class ArticlesService {
         },
       },
       orderBy: { scheduledAt: 'asc' },
+    });
+  }
+
+  async findDrafts(authorId?: string): Promise<Article[]> {
+    const where: Prisma.ArticleWhereInput = {
+      published: false,
+      scheduledAt: null,
+    };
+
+    if (authorId) {
+      where.authorId = authorId;
+    }
+
+    return this.prisma.article.findMany({
+      where,
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            picture: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
