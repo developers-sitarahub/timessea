@@ -10,6 +10,7 @@ import { PrismaService } from './prisma.service';
 export interface AuthorStats {
   publishedCount: number;
   scheduledCount: number;
+  draftCount: number;
   totalLikes: number;
   totalViews: number;
 }
@@ -77,7 +78,7 @@ export class AnalyticsQueryService {
    * Get author stats for profile overview
    */
   async getAuthorStats(authorId: string): Promise<AuthorStats> {
-    const [publishedCount, scheduledCount, aggregates] = await Promise.all([
+    const [publishedCount, scheduledCount, draftCount, aggregates] = await Promise.all([
       this.prismaService.article.count({
         where: {
           authorId,
@@ -91,6 +92,13 @@ export class AnalyticsQueryService {
           scheduledAt: {
             not: null,
           },
+        },
+      }),
+      this.prismaService.article.count({
+        where: {
+          authorId,
+          published: false,
+          scheduledAt: null,
         },
       }),
       this.prismaService.article.aggregate({
@@ -107,6 +115,7 @@ export class AnalyticsQueryService {
     return {
       publishedCount,
       scheduledCount,
+      draftCount,
       totalLikes: aggregates._sum.likes || 0,
       totalViews: aggregates._sum.views || 0,
     };

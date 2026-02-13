@@ -5,7 +5,6 @@ export type Article = {
   content: string;
   author: {
     name: string;
-    avatar: string;
     email: string;
     picture?: string;
   };
@@ -71,7 +70,6 @@ The regulatory landscape is also evolving. Governments worldwide are grappling w
 The future of Web 3 likely lies not in replacing existing systems entirely, but in complementing them. Hybrid approaches that combine the best of centralized and decentralized technologies will probably define the next decade of internet evolution.`,
     author: {
       name: "Josh Brian",
-      avatar: "JB",
       email: "josh@blogify.com",
     },
     category: "Tech",
@@ -108,7 +106,6 @@ Great leaders know when to step back. Delegation isn't just about distributing w
 In today's rapidly evolving landscape, adaptability is perhaps the most crucial leadership trait. Leaders who embrace change, remain curious, and continuously learn set the tone for their entire organization.`,
     author: {
       name: "Alan Muller",
-      avatar: "AM",
       email: "alan@blogify.com",
     },
     category: "Business",
@@ -151,7 +148,6 @@ In minimalist design, every color choice carries weight. A limited palette force
 When you strip away decorative elements, typography becomes the primary vehicle for visual interest. The choice of typeface, weight, spacing, and size becomes critical in establishing mood and hierarchy.`,
     author: {
       name: "Sarah Chen",
-      avatar: "SC",
       email: "sarah@blogify.com",
     },
     category: "Design",
@@ -189,7 +185,6 @@ The applications of quantum computing extend far beyond academic curiosity. Drug
 While fully fault-tolerant quantum computers may still be years away, hybrid quantum-classical approaches are already delivering results. The next decade will likely see quantum computing move from laboratory curiosity to practical business tool.`,
     author: {
       name: "Dr. Elena Voss",
-      avatar: "EV",
       email: "elena@blogify.com",
     },
     category: "Science",
@@ -224,7 +219,6 @@ One of the biggest challenges of distributed work is maintaining company culture
 Most organizations are landing on a hybrid model that combines the flexibility of remote work with the benefits of in-person collaboration. The key is finding the right balance for each team and context.`,
     author: {
       name: "Marcus Johnson",
-      avatar: "MJ",
       email: "marcus@blogify.com",
     },
     category: "Business",
@@ -258,7 +252,6 @@ The rise of AI art raises important questions about copyright, attribution, and 
 The most exciting possibilities lie not in AI replacing human creativity, but in augmenting it. The collaboration between human intuition and machine capability promises to unlock entirely new forms of artistic expression.`,
     author: {
       name: "Nina Patel",
-      avatar: "NP",
       email: "nina@blogify.com",
     },
     category: "Culture",

@@ -66,6 +66,7 @@ export default function ProfilePage() {
   const [stats, setStats] = useState({
     publishedCount: 0,
     scheduledCount: 0,
+    draftCount: 0,
     totalLikes: 0,
     totalViews: 0,
   });
@@ -121,6 +122,11 @@ export default function ProfilePage() {
       icon: FileText,
       label: "Published Articles",
       count: stats.publishedCount.toString(),
+    },
+    {
+      icon: FileText,
+      label: "Draft Articles",
+      count: stats.draftCount.toString(),
     },
     {
       icon: Heart,
@@ -331,27 +337,56 @@ export default function ProfilePage() {
           Your Activity
         </h3>
         <div className="space-y-2">
-          {activityItems.map((item, index) => (
-            <motion.button
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.1 }}
-              key={item.label}
-              type="button"
-              className="group flex w-full items-center gap-4 rounded-2xl bg-card p-4 transition-all hover:bg-secondary/50 border border-transparent hover:border-border/50 shadow-sm hover:shadow-md"
-            >
-              <div className="p-2 rounded-xl bg-secondary group-hover:bg-background transition-colors text-foreground">
-                <item.icon className="h-5 w-5" strokeWidth={2} />
-              </div>
-              <span className="flex-1 text-left text-sm font-bold text-foreground">
-                {item.label}
-              </span>
-              <span className="text-xs font-bold text-muted-foreground bg-secondary px-2.5 py-1 rounded-md group-hover:bg-background transition-colors">
-                {item.count}
-              </span>
-              <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
-            </motion.button>
-          ))}
+          {activityItems.map((item, index) => {
+            const isDrafts = item.label === "Draft Articles";
+            const href = isDrafts ? "/drafts" : "#";
+
+            const content = (
+              <>
+                <div className="p-2 rounded-xl bg-secondary group-hover:bg-background transition-colors text-foreground">
+                  <item.icon className="h-5 w-5" strokeWidth={2} />
+                </div>
+                <span className="flex-1 text-left text-sm font-bold text-foreground">
+                  {item.label}
+                </span>
+                <span className="text-xs font-bold text-muted-foreground bg-secondary px-2.5 py-1 rounded-md group-hover:bg-background transition-colors">
+                  {item.count}
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-foreground transition-colors" />
+              </>
+            );
+
+            if (isDrafts) {
+              return (
+                <motion.div
+                  initial={{ opacity: 0, x: -10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                  key={item.label}
+                >
+                  <Link
+                    href={href}
+                    className="group flex w-full items-center gap-4 rounded-2xl bg-card p-4 transition-all hover:bg-secondary/50 border border-transparent hover:border-border/50 shadow-sm hover:shadow-md"
+                  >
+                    {content}
+                  </Link>
+                </motion.div>
+              );
+            }
+
+            return (
+              <motion.button
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: index * 0.1 }}
+                key={item.label}
+                type="button"
+                className="group flex w-full items-center gap-4 rounded-2xl bg-card p-4 transition-all hover:bg-secondary/50 border border-transparent hover:border-border/50 shadow-sm hover:shadow-md"
+              >
+                {content}
+              </motion.button>
+            );
+          })}
         </div>
       </div>
 

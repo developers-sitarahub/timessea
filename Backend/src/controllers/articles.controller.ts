@@ -8,7 +8,9 @@ import {
   Delete,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { ArticlesService } from '../services/articles.service';
 import { CreateArticleDto } from '../modules/articles/dto/create-article.dto';
@@ -26,6 +28,12 @@ export class ArticlesController {
   @Get('scheduled')
   async getScheduled() {
     return this.articlesService.findScheduled();
+  }
+
+  @Get('drafts')
+  @UseGuards(AuthGuard('jwt'))
+  async getDrafts(@Req() req) {
+    return this.articlesService.findDrafts(req.user.id);
   }
 
   @Get()

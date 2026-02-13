@@ -145,6 +145,32 @@ export class ArticlesService {
     });
   }
 
+  async findDrafts(authorId?: string): Promise<Article[]> {
+    const where: Prisma.ArticleWhereInput = {
+      published: false,
+      scheduledAt: null,
+    };
+
+    if (authorId) {
+      where.authorId = authorId;
+    }
+
+    return this.prisma.article.findMany({
+      where,
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            picture: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   findOne(id: string): Promise<Article | null> {
     return this.prisma.article.findUnique({
       where: { id },
