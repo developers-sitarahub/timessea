@@ -9,6 +9,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { ArticlesModule } from './modules/articles/articles.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { CommentsModule } from './modules/comments/comments.module';
 
 @Module({
   imports: [

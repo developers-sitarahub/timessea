@@ -1,14 +1,11 @@
 import {
   Controller,
-  Get,
   Post,
-  Delete,
   Body,
   Param,
+  Get,
   Req,
   UseGuards,
-  HttpException,
-  HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
@@ -23,35 +20,15 @@ interface RequestWithUser extends Request {
     picture: string;
   };
 }
+import { CreateCommentDto } from '../modules/comments/dto/create-comment.dto';
+import { Request } from 'express';
+import { AuthGuard } from '@nestjs/passport';
 
-@Controller('api/articles')
+@Controller('api/comments')
 export class CommentsController {
   constructor(private readonly commentsService: CommentsService) {}
 
-  /**
-   * GET /api/articles/:articleId/comments
-   * Get all comments for an article (tree structure)
-   */
-  @Get(':articleId/comments')
-  async getComments(@Param('articleId') articleId: string) {
-    return this.commentsService.findByArticle(articleId);
-  }
-
-  /**
-   * GET /api/articles/:articleId/comments/count
-   * Get comment count
-   */
-  @Get(':articleId/comments/count')
-  async getCommentCount(@Param('articleId') articleId: string) {
-    const count = await this.commentsService.getCount(articleId);
-    return { count };
-  }
-
-  /**
-   * POST /api/articles/:articleId/comments
-   * Create a comment (requires auth)
-   */
-  @Post(':articleId/comments')
+  @Post()
   @UseGuards(AuthGuard('jwt'))
   async createComment(
     @Param('articleId') articleId: string,
@@ -100,5 +77,21 @@ export class CommentsController {
         HttpStatus.FORBIDDEN,
       );
     }
+  create(@Body() createCommentDto: CreateCommentDto, @Req() req: Request) {
+    const userId = (req as any).user?.id;
+    return this.commentsService.create(userId, createCommentDto);
+  }
+
+  @Post(':id/like')
+  @UseGuards(AuthGuard('jwt'))
+  toggleLike(@Param('id') id: string, @Req() req: Request) {
+    const userId = (req as any).user?.id;
+    return this.commentsService.toggleLike(userId, id);
+  }
+
+  @Get('article/:articleId')
+  findAll(@Param('articleId') articleId: string, @Req() req: Request) {
+    const userId = (req as any).user?.id; // May be undefined if not authenticated, but we need to ensure optional auth middleware is used if we want this
+    return this.commentsService.findAllByArticle(articleId, userId);
   }
 }

@@ -1,122 +1,133 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
+import { CreateCommentDto } from '../modules/comments/dto/create-comment.dto';
 
 @Injectable()
 export class CommentsService {
   constructor(private prisma: PrismaService) {}
 
-  /**
-   * Create a new comment (top-level or reply)
-   */
-  async create(data: {
-    content: string;
-    articleId: string;
-    authorId: string;
-    parentId?: string;
-  }) {
-    return this.prisma.comment.create({
-      data: {
-        content: data.content,
-        article: { connect: { id: data.articleId } },
-        author: { connect: { id: data.authorId } },
-        ...(data.parentId ? { parent: { connect: { id: data.parentId } } } : {}),
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            picture: true,
-          },
-        },
-      },
-    });
-  }
-
-  /**
-   * Get all comments for an article (tree structure)
-   * Returns top-level comments with nested replies
-   */
-  async findByArticle(articleId: string) {
-    // Fetch all comments for the article
-    const allComments = await this.prisma.comment.findMany({
-      where: { articleId },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            picture: true,
-          },
-        },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    // Build tree structure
-    const commentMap = new Map<string, any>();
-    const rootComments: any[] = [];
-
-    // First pass: create a map of all comments
-    for (const comment of allComments) {
-      commentMap.set(comment.id, { ...comment, replies: [] });
-    }
-
-    // Second pass: build tree
-    for (const comment of allComments) {
-      const node = commentMap.get(comment.id);
-      if (comment.parentId && commentMap.has(comment.parentId)) {
-        commentMap.get(comment.parentId).replies.push(node);
-      } else {
-        rootComments.push(node);
+  async create(userId: string, createCommentDto: CreateCommentDto) {
+    if (createCommentDto.parentId) {
+      const parent = await this.prisma.comment.findUnique({
+        where: { id: createCommentDto.parentId },
+      });
+      if (!parent) {
+        throw new Error('Parent comment not found');
+      }
+      if (parent.articleId !== createCommentDto.articleId) {
+        throw new Error('Parent comment belongs to a different article');
       }
     }
 
-    return rootComments;
-  }
-
-  /**
-   * Get comment count for an article
-   */
-  async getCount(articleId: string): Promise<number> {
-    return this.prisma.comment.count({
-      where: { articleId },
-    });
-  }
-
-  /**
-   * Like a comment
-   */
-  async likeComment(commentId: string) {
-    return this.prisma.comment.update({
-      where: { id: commentId },
+    return this.prisma.comment.create({
       data: {
-        likes: { increment: 1 },
+        content: createCommentDto.content,
+        articleId: createCommentDto.articleId,
+        authorId: userId,
+        parentId: createCommentDto.parentId,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            picture: true,
+          },
+        },
       },
     });
   }
 
-  /**
-   * Delete a comment (and cascading replies)
-   */
-  async delete(commentId: string, userId: string) {
-    // Only author can delete
-    const comment = await this.prisma.comment.findUnique({
-      where: { id: commentId },
+  async findAllByArticle(articleId: string, userId?: string) {
+    const comments = await this.prisma.comment.findMany({
+      where: {
+        articleId,
+        parentId: null,
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            picture: true,
+          },
+        },
+        commentLikes: true,
+        replies: {
+          include: {
+            author: {
+              select: {
+                id: true,
+                name: true,
+                picture: true,
+              },
+            },
+            commentLikes: true,
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
     });
 
-    if (!comment) {
-      throw new Error('Comment not found');
-    }
+    return comments.map((comment) => ({
+      ...comment,
+      replies: comment.replies.map((reply) => ({
+        ...reply,
+        likeCount: reply.commentLikes.length,
+        likedByMe: userId
+          ? reply.commentLikes.some((like) => like.userId === userId)
+          : false,
+      })),
+      likeCount: comment.commentLikes.length,
+      likedByMe: userId
+        ? comment.commentLikes.some((like) => like.userId === userId)
+        : false,
+    }));
+  }
 
-    if (comment.authorId !== userId) {
-      throw new Error('Not authorized to delete this comment');
-    }
-
-    return this.prisma.comment.delete({
-      where: { id: commentId },
+  async toggleLike(userId: string, commentId: string) {
+    // Check if user already liked
+    const existingLike = await this.prisma.commentLike.findUnique({
+      where: {
+        userId_commentId: {
+          userId,
+          commentId,
+        },
+      },
     });
+
+    if (existingLike) {
+      await this.prisma.commentLike.delete({
+        where: {
+          id: existingLike.id,
+        },
+      });
+
+      await this.prisma.comment.update({
+        where: { id: commentId },
+        data: { likes: { decrement: 1 } },
+      });
+
+      return { liked: false };
+    } else {
+      await this.prisma.commentLike.create({
+        data: {
+          userId,
+          commentId,
+        },
+      });
+
+      await this.prisma.comment.update({
+        where: { id: commentId },
+        data: { likes: { increment: 1 } },
+      });
+
+      return { liked: true };
+    }
   }
 }
