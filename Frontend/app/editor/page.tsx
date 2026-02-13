@@ -459,6 +459,7 @@ export default function EditorPage() {
       name: user?.name || "Anonymous",
       email: user?.email || "anonymous@example.com",
       picture: user?.picture,
+      avatar: "",
     },
     category: selectedCategory || "General",
     readTime,
