@@ -54,7 +54,8 @@ export const ModelName = {
   User: 'User',
   RefreshToken: 'RefreshToken',
   Article: 'Article',
-  Comment: 'Comment'
+  Comment: 'Comment',
+  CommentLike: 'CommentLike'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -137,6 +138,16 @@ export const CommentScalarFieldEnum = {
 } as const
 
 export type CommentScalarFieldEnum = (typeof CommentScalarFieldEnum)[keyof typeof CommentScalarFieldEnum]
+
+
+export const CommentLikeScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  commentId: 'commentId',
+  createdAt: 'createdAt'
+} as const
+
+export type CommentLikeScalarFieldEnum = (typeof CommentLikeScalarFieldEnum)[keyof typeof CommentLikeScalarFieldEnum]
 
 
 export const SortOrder = {
