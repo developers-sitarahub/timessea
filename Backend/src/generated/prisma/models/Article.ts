@@ -28,7 +28,6 @@ export type AggregateArticle = {
 
 export type ArticleAvgAggregateOutputType = {
   likes: number | null
-  dislikes: number | null
   readTime: number | null
   views: number | null
   reads: number | null
@@ -36,7 +35,6 @@ export type ArticleAvgAggregateOutputType = {
 
 export type ArticleSumAggregateOutputType = {
   likes: number | null
-  dislikes: number | null
   readTime: number | null
   views: number | null
   reads: number | null
@@ -55,8 +53,6 @@ export type ArticleMinAggregateOutputType = {
   location: string | null
   liked: boolean | null
   likes: number | null
-  dislikes: number | null
-  disliked: boolean | null
   readTime: number | null
   image: string | null
   views: number | null
@@ -87,8 +83,6 @@ export type ArticleMaxAggregateOutputType = {
   location: string | null
   liked: boolean | null
   likes: number | null
-  dislikes: number | null
-  disliked: boolean | null
   readTime: number | null
   image: string | null
   views: number | null
@@ -119,8 +113,6 @@ export type ArticleCountAggregateOutputType = {
   location: number
   liked: number
   likes: number
-  dislikes: number
-  disliked: number
   readTime: number
   image: number
   views: number
@@ -143,7 +135,6 @@ export type ArticleCountAggregateOutputType = {
 
 export type ArticleAvgAggregateInputType = {
   likes?: true
-  dislikes?: true
   readTime?: true
   views?: true
   reads?: true
@@ -151,7 +142,6 @@ export type ArticleAvgAggregateInputType = {
 
 export type ArticleSumAggregateInputType = {
   likes?: true
-  dislikes?: true
   readTime?: true
   views?: true
   reads?: true
@@ -170,8 +160,6 @@ export type ArticleMinAggregateInputType = {
   location?: true
   liked?: true
   likes?: true
-  dislikes?: true
-  disliked?: true
   readTime?: true
   image?: true
   views?: true
@@ -202,8 +190,6 @@ export type ArticleMaxAggregateInputType = {
   location?: true
   liked?: true
   likes?: true
-  dislikes?: true
-  disliked?: true
   readTime?: true
   image?: true
   views?: true
@@ -234,8 +220,6 @@ export type ArticleCountAggregateInputType = {
   location?: true
   liked?: true
   likes?: true
-  dislikes?: true
-  disliked?: true
   readTime?: true
   image?: true
   views?: true
@@ -354,8 +338,6 @@ export type ArticleGroupByOutputType = {
   location: string | null
   liked: boolean
   likes: number
-  dislikes: number
-  disliked: boolean
   readTime: number
   image: string | null
   views: number
@@ -410,8 +392,6 @@ export type ArticleWhereInput = {
   location?: Prisma.StringNullableFilter<"Article"> | string | null
   liked?: Prisma.BoolFilter<"Article"> | boolean
   likes?: Prisma.IntFilter<"Article"> | number
-  dislikes?: Prisma.IntFilter<"Article"> | number
-  disliked?: Prisma.BoolFilter<"Article"> | boolean
   readTime?: Prisma.IntFilter<"Article"> | number
   image?: Prisma.StringNullableFilter<"Article"> | string | null
   views?: Prisma.IntFilter<"Article"> | number
@@ -445,8 +425,6 @@ export type ArticleOrderByWithRelationInput = {
   location?: Prisma.SortOrderInput | Prisma.SortOrder
   liked?: Prisma.SortOrder
   likes?: Prisma.SortOrder
-  dislikes?: Prisma.SortOrder
-  disliked?: Prisma.SortOrder
   readTime?: Prisma.SortOrder
   image?: Prisma.SortOrderInput | Prisma.SortOrder
   views?: Prisma.SortOrder
@@ -483,8 +461,6 @@ export type ArticleWhereUniqueInput = Prisma.AtLeast<{
   location?: Prisma.StringNullableFilter<"Article"> | string | null
   liked?: Prisma.BoolFilter<"Article"> | boolean
   likes?: Prisma.IntFilter<"Article"> | number
-  dislikes?: Prisma.IntFilter<"Article"> | number
-  disliked?: Prisma.BoolFilter<"Article"> | boolean
   readTime?: Prisma.IntFilter<"Article"> | number
   image?: Prisma.StringNullableFilter<"Article"> | string | null
   views?: Prisma.IntFilter<"Article"> | number
@@ -518,8 +494,6 @@ export type ArticleOrderByWithAggregationInput = {
   location?: Prisma.SortOrderInput | Prisma.SortOrder
   liked?: Prisma.SortOrder
   likes?: Prisma.SortOrder
-  dislikes?: Prisma.SortOrder
-  disliked?: Prisma.SortOrder
   readTime?: Prisma.SortOrder
   image?: Prisma.SortOrderInput | Prisma.SortOrder
   views?: Prisma.SortOrder
@@ -559,8 +533,6 @@ export type ArticleScalarWhereWithAggregatesInput = {
   location?: Prisma.StringNullableWithAggregatesFilter<"Article"> | string | null
   liked?: Prisma.BoolWithAggregatesFilter<"Article"> | boolean
   likes?: Prisma.IntWithAggregatesFilter<"Article"> | number
-  dislikes?: Prisma.IntWithAggregatesFilter<"Article"> | number
-  disliked?: Prisma.BoolWithAggregatesFilter<"Article"> | boolean
   readTime?: Prisma.IntWithAggregatesFilter<"Article"> | number
   image?: Prisma.StringNullableWithAggregatesFilter<"Article"> | string | null
   views?: Prisma.IntWithAggregatesFilter<"Article"> | number
@@ -591,8 +563,6 @@ export type ArticleCreateInput = {
   location?: string | null
   liked?: boolean
   likes?: number
-  dislikes?: number
-  disliked?: boolean
   readTime?: number
   image?: string | null
   views?: number
@@ -626,8 +596,6 @@ export type ArticleUncheckedCreateInput = {
   location?: string | null
   liked?: boolean
   likes?: number
-  dislikes?: number
-  disliked?: boolean
   readTime?: number
   image?: string | null
   views?: number
@@ -659,8 +627,6 @@ export type ArticleUpdateInput = {
   location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   liked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   likes?: Prisma.IntFieldUpdateOperationsInput | number
-  dislikes?: Prisma.IntFieldUpdateOperationsInput | number
-  disliked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
@@ -694,8 +660,6 @@ export type ArticleUncheckedUpdateInput = {
   location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   liked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   likes?: Prisma.IntFieldUpdateOperationsInput | number
-  dislikes?: Prisma.IntFieldUpdateOperationsInput | number
-  disliked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
@@ -728,8 +692,6 @@ export type ArticleCreateManyInput = {
   location?: string | null
   liked?: boolean
   likes?: number
-  dislikes?: number
-  disliked?: boolean
   readTime?: number
   image?: string | null
   views?: number
@@ -760,8 +722,6 @@ export type ArticleUpdateManyMutationInput = {
   location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   liked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   likes?: Prisma.IntFieldUpdateOperationsInput | number
-  dislikes?: Prisma.IntFieldUpdateOperationsInput | number
-  disliked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
@@ -793,8 +753,6 @@ export type ArticleUncheckedUpdateManyInput = {
   location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   liked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   likes?: Prisma.IntFieldUpdateOperationsInput | number
-  dislikes?: Prisma.IntFieldUpdateOperationsInput | number
-  disliked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
@@ -836,8 +794,6 @@ export type ArticleCountOrderByAggregateInput = {
   location?: Prisma.SortOrder
   liked?: Prisma.SortOrder
   likes?: Prisma.SortOrder
-  dislikes?: Prisma.SortOrder
-  disliked?: Prisma.SortOrder
   readTime?: Prisma.SortOrder
   image?: Prisma.SortOrder
   views?: Prisma.SortOrder
@@ -858,7 +814,6 @@ export type ArticleCountOrderByAggregateInput = {
 
 export type ArticleAvgOrderByAggregateInput = {
   likes?: Prisma.SortOrder
-  dislikes?: Prisma.SortOrder
   readTime?: Prisma.SortOrder
   views?: Prisma.SortOrder
   reads?: Prisma.SortOrder
@@ -877,8 +832,6 @@ export type ArticleMaxOrderByAggregateInput = {
   location?: Prisma.SortOrder
   liked?: Prisma.SortOrder
   likes?: Prisma.SortOrder
-  dislikes?: Prisma.SortOrder
-  disliked?: Prisma.SortOrder
   readTime?: Prisma.SortOrder
   image?: Prisma.SortOrder
   views?: Prisma.SortOrder
@@ -909,8 +862,6 @@ export type ArticleMinOrderByAggregateInput = {
   location?: Prisma.SortOrder
   liked?: Prisma.SortOrder
   likes?: Prisma.SortOrder
-  dislikes?: Prisma.SortOrder
-  disliked?: Prisma.SortOrder
   readTime?: Prisma.SortOrder
   image?: Prisma.SortOrder
   views?: Prisma.SortOrder
@@ -930,7 +881,6 @@ export type ArticleMinOrderByAggregateInput = {
 
 export type ArticleSumOrderByAggregateInput = {
   likes?: Prisma.SortOrder
-  dislikes?: Prisma.SortOrder
   readTime?: Prisma.SortOrder
   views?: Prisma.SortOrder
   reads?: Prisma.SortOrder
@@ -1025,8 +975,6 @@ export type ArticleCreateWithoutAuthorInput = {
   location?: string | null
   liked?: boolean
   likes?: number
-  dislikes?: number
-  disliked?: boolean
   readTime?: number
   image?: string | null
   views?: number
@@ -1058,8 +1006,6 @@ export type ArticleUncheckedCreateWithoutAuthorInput = {
   location?: string | null
   liked?: boolean
   likes?: number
-  dislikes?: number
-  disliked?: boolean
   readTime?: number
   image?: string | null
   views?: number
@@ -1121,8 +1067,6 @@ export type ArticleScalarWhereInput = {
   location?: Prisma.StringNullableFilter<"Article"> | string | null
   liked?: Prisma.BoolFilter<"Article"> | boolean
   likes?: Prisma.IntFilter<"Article"> | number
-  dislikes?: Prisma.IntFilter<"Article"> | number
-  disliked?: Prisma.BoolFilter<"Article"> | boolean
   readTime?: Prisma.IntFilter<"Article"> | number
   image?: Prisma.StringNullableFilter<"Article"> | string | null
   views?: Prisma.IntFilter<"Article"> | number
@@ -1153,8 +1097,6 @@ export type ArticleCreateWithoutCommentsInput = {
   location?: string | null
   liked?: boolean
   likes?: number
-  dislikes?: number
-  disliked?: boolean
   readTime?: number
   image?: string | null
   views?: number
@@ -1187,8 +1129,6 @@ export type ArticleUncheckedCreateWithoutCommentsInput = {
   location?: string | null
   liked?: boolean
   likes?: number
-  dislikes?: number
-  disliked?: boolean
   readTime?: number
   image?: string | null
   views?: number
@@ -1235,8 +1175,6 @@ export type ArticleUpdateWithoutCommentsInput = {
   location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   liked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   likes?: Prisma.IntFieldUpdateOperationsInput | number
-  dislikes?: Prisma.IntFieldUpdateOperationsInput | number
-  disliked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1269,8 +1207,6 @@ export type ArticleUncheckedUpdateWithoutCommentsInput = {
   location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   liked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   likes?: Prisma.IntFieldUpdateOperationsInput | number
-  dislikes?: Prisma.IntFieldUpdateOperationsInput | number
-  disliked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1301,8 +1237,6 @@ export type ArticleCreateManyAuthorInput = {
   location?: string | null
   liked?: boolean
   likes?: number
-  dislikes?: number
-  disliked?: boolean
   readTime?: number
   image?: string | null
   views?: number
@@ -1333,8 +1267,6 @@ export type ArticleUpdateWithoutAuthorInput = {
   location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   liked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   likes?: Prisma.IntFieldUpdateOperationsInput | number
-  dislikes?: Prisma.IntFieldUpdateOperationsInput | number
-  disliked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1366,8 +1298,6 @@ export type ArticleUncheckedUpdateWithoutAuthorInput = {
   location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   liked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   likes?: Prisma.IntFieldUpdateOperationsInput | number
-  dislikes?: Prisma.IntFieldUpdateOperationsInput | number
-  disliked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1399,8 +1329,6 @@ export type ArticleUncheckedUpdateManyWithoutAuthorInput = {
   location?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   liked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   likes?: Prisma.IntFieldUpdateOperationsInput | number
-  dislikes?: Prisma.IntFieldUpdateOperationsInput | number
-  disliked?: Prisma.BoolFieldUpdateOperationsInput | boolean
   readTime?: Prisma.IntFieldUpdateOperationsInput | number
   image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   views?: Prisma.IntFieldUpdateOperationsInput | number
@@ -1463,8 +1391,6 @@ export type ArticleSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   location?: boolean
   liked?: boolean
   likes?: boolean
-  dislikes?: boolean
-  disliked?: boolean
   readTime?: boolean
   image?: boolean
   views?: boolean
@@ -1499,8 +1425,6 @@ export type ArticleSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   location?: boolean
   liked?: boolean
   likes?: boolean
-  dislikes?: boolean
-  disliked?: boolean
   readTime?: boolean
   image?: boolean
   views?: boolean
@@ -1533,8 +1457,6 @@ export type ArticleSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   location?: boolean
   liked?: boolean
   likes?: boolean
-  dislikes?: boolean
-  disliked?: boolean
   readTime?: boolean
   image?: boolean
   views?: boolean
@@ -1567,8 +1489,6 @@ export type ArticleSelectScalar = {
   location?: boolean
   liked?: boolean
   likes?: boolean
-  dislikes?: boolean
-  disliked?: boolean
   readTime?: boolean
   image?: boolean
   views?: boolean
@@ -1587,7 +1507,7 @@ export type ArticleSelectScalar = {
   scheduledAt?: boolean
 }
 
-export type ArticleOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "content" | "authorId" | "createdAt" | "updatedAt" | "bookmarked" | "category" | "excerpt" | "location" | "liked" | "likes" | "dislikes" | "disliked" | "readTime" | "image" | "views" | "reads" | "media" | "subheadline" | "type" | "status" | "imageCaption" | "imageDescription" | "imageCredit" | "seoTitle" | "seoDescription" | "factChecked" | "published" | "scheduledAt", ExtArgs["result"]["article"]>
+export type ArticleOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "title" | "content" | "authorId" | "createdAt" | "updatedAt" | "bookmarked" | "category" | "excerpt" | "location" | "liked" | "likes" | "readTime" | "image" | "views" | "reads" | "media" | "subheadline" | "type" | "status" | "imageCaption" | "imageDescription" | "imageCredit" | "seoTitle" | "seoDescription" | "factChecked" | "published" | "scheduledAt", ExtArgs["result"]["article"]>
 export type ArticleInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   author?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   comments?: boolean | Prisma.Article$commentsArgs<ExtArgs>
@@ -1619,8 +1539,6 @@ export type $ArticlePayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     location: string | null
     liked: boolean
     likes: number
-    dislikes: number
-    disliked: boolean
     readTime: number
     image: string | null
     views: number
@@ -2074,8 +1992,6 @@ export interface ArticleFieldRefs {
   readonly location: Prisma.FieldRef<"Article", 'String'>
   readonly liked: Prisma.FieldRef<"Article", 'Boolean'>
   readonly likes: Prisma.FieldRef<"Article", 'Int'>
-  readonly dislikes: Prisma.FieldRef<"Article", 'Int'>
-  readonly disliked: Prisma.FieldRef<"Article", 'Boolean'>
   readonly readTime: Prisma.FieldRef<"Article", 'Int'>
   readonly image: Prisma.FieldRef<"Article", 'String'>
   readonly views: Prisma.FieldRef<"Article", 'Int'>

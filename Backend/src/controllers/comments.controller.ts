@@ -4,13 +4,17 @@ import {
   Body,
   Param,
   Get,
+  Delete,
   Req,
   UseGuards,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { CommentsService } from '../services/comments.service';
 import { Comment } from '../generated/prisma/client';
+import { CreateCommentDto } from '../modules/comments/dto/create-comment.dto';
 
 interface RequestWithUser extends Request {
   user: {
@@ -20,9 +24,6 @@ interface RequestWithUser extends Request {
     picture: string;
   };
 }
-import { CreateCommentDto } from '../modules/comments/dto/create-comment.dto';
-import { Request } from 'express';
-import { AuthGuard } from '@nestjs/passport';
 
 @Controller('api/comments')
 export class CommentsController {
@@ -30,12 +31,11 @@ export class CommentsController {
 
   @Post()
   @UseGuards(AuthGuard('jwt'))
-  async createComment(
-    @Param('articleId') articleId: string,
-    @Body() body: { content: string; parentId?: string },
+  async create(
+    @Body() createCommentDto: CreateCommentDto,
     @Req() req: RequestWithUser,
   ): Promise<Comment> {
-    if (!body.content || !body.content.trim()) {
+    if (!createCommentDto.content || !createCommentDto.content.trim()) {
       throw new HttpException(
         'Comment content is required',
         HttpStatus.BAD_REQUEST,
@@ -43,55 +43,43 @@ export class CommentsController {
     }
 
     return this.commentsService.create({
-      content: body.content.trim(),
-      articleId,
+      content: createCommentDto.content.trim(),
+      articleId: createCommentDto.articleId,
       authorId: req.user.id,
-      parentId: body.parentId,
+      parentId: createCommentDto.parentId,
     });
   }
 
-  /**
-   * POST /api/articles/:articleId/comments/:commentId/like
-   * Like a comment
-   */
-  @Post(':articleId/comments/:commentId/like')
-  async likeComment(@Param('commentId') commentId: string): Promise<Comment> {
-    return this.commentsService.likeComment(commentId);
+  @Post(':id/like')
+  @UseGuards(AuthGuard('jwt'))
+  async toggleLike(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.commentsService.toggleLike(req.user.id, id);
   }
 
-  /**
-   * DELETE /api/articles/:articleId/comments/:commentId
-   * Delete a comment (requires auth, owner only)
-   */
-  @Delete(':articleId/comments/:commentId')
+  @Get('article/:articleId/count')
+  async getCount(@Param('articleId') articleId: string) {
+    const count = await this.commentsService.getCount(articleId);
+    return { count };
+  }
+
+  @Get('article/:articleId')
+  async findAll(@Param('articleId') articleId: string) {
+    return this.commentsService.findByArticle(articleId);
+  }
+
+  @Delete(':id')
   @UseGuards(AuthGuard('jwt'))
   async deleteComment(
-    @Param('commentId') commentId: string,
+    @Param('id') id: string,
     @Req() req: RequestWithUser,
   ): Promise<Comment> {
     try {
-      return await this.commentsService.delete(commentId, req.user.id);
+      return await this.commentsService.delete(id, req.user.id);
     } catch (error) {
       throw new HttpException(
         error instanceof Error ? error.message : 'Failed to delete comment',
         HttpStatus.FORBIDDEN,
       );
     }
-  create(@Body() createCommentDto: CreateCommentDto, @Req() req: Request) {
-    const userId = (req as any).user?.id;
-    return this.commentsService.create(userId, createCommentDto);
-  }
-
-  @Post(':id/like')
-  @UseGuards(AuthGuard('jwt'))
-  toggleLike(@Param('id') id: string, @Req() req: Request) {
-    const userId = (req as any).user?.id;
-    return this.commentsService.toggleLike(userId, id);
-  }
-
-  @Get('article/:articleId')
-  findAll(@Param('articleId') articleId: string, @Req() req: Request) {
-    const userId = (req as any).user?.id; // May be undefined if not authenticated, but we need to ensure optional auth middleware is used if we want this
-    return this.commentsService.findAllByArticle(articleId, userId);
   }
 }

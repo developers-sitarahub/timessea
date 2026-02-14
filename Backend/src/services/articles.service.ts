@@ -111,6 +111,7 @@ export class ArticlesService {
       where.OR = [{ image: { not: null } }, { media: { not: Prisma.DbNull } }];
     }
 
+    console.log('ArticlesService: findAll version 12:30');
     const articles = await this.prisma.article.findMany({
       where,
       take: limit,

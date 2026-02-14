@@ -300,9 +300,8 @@ export default function ArticlePage({
     fetchArticle();
   }, [id]);
 
-  // Fetch comment count
   useEffect(() => {
-    fetch(`${API_URL}/api/articles/${id}/comments/count`)
+    fetch(`${API_URL}/api/comments/article/${id}/count`)
       .then((res) => res.json())
       .then((data) => setCommentCount(data.count || 0))
       .catch(() => {});
@@ -312,7 +311,7 @@ export default function ArticlePage({
   const fetchComments = useCallback(async () => {
     setLoadingComments(true);
     try {
-      const res = await fetch(`${API_URL}/api/articles/${id}/comments`);
+      const res = await fetch(`${API_URL}/api/comments/article/${id}`);
       if (res.ok) {
         const data = await res.json();
         setComments(data);
@@ -409,13 +408,13 @@ export default function ArticlePage({
     if (!commentText.trim() || !token) return;
     setSubmittingComment(true);
     try {
-      const res = await fetch(`${API_URL}/api/articles/${id}/comments`, {
+      const res = await fetch(`${API_URL}/api/comments`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ content: commentText.trim() }),
+        body: JSON.stringify({ content: commentText.trim(), articleId: id }),
       });
       if (res.ok) {
         setCommentText("");
@@ -432,13 +431,13 @@ export default function ArticlePage({
   const handleReply = async (parentId: string, content: string) => {
     if (!token) return;
     try {
-      const res = await fetch(`${API_URL}/api/articles/${id}/comments`, {
+      const res = await fetch(`${API_URL}/api/comments`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ content, parentId }),
+        body: JSON.stringify({ content, articleId: id, parentId }),
       });
       if (res.ok) {
         await fetchComments();
@@ -452,15 +451,12 @@ export default function ArticlePage({
   const handleDeleteComment = async (commentId: string) => {
     if (!token) return;
     try {
-      const res = await fetch(
-        `${API_URL}/api/articles/${id}/comments/${commentId}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      const res = await fetch(`${API_URL}/api/comments/${commentId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      );
+      });
       if (res.ok) {
         await fetchComments();
       }
@@ -472,7 +468,7 @@ export default function ArticlePage({
   // Like a comment
   const handleLikeComment = async (commentId: string) => {
     try {
-      await fetch(`${API_URL}/api/articles/${id}/comments/${commentId}/like`, {
+      await fetch(`${API_URL}/api/comments/${commentId}/like`, {
         method: "POST",
       });
       await fetchComments();

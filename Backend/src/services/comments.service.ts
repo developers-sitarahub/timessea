@@ -99,6 +99,50 @@ export class CommentsService {
   }
 
   /**
+   * Toggle like on a comment
+   */
+  async toggleLike(userId: string, commentId: string) {
+    const existing = await this.prisma.commentLike.findUnique({
+      where: {
+        userId_commentId: {
+          userId,
+          commentId,
+        },
+      },
+    });
+
+    if (existing) {
+      return this.prisma.$transaction(async (tx) => {
+        await tx.commentLike.delete({
+          where: { id: existing.id },
+        });
+        return tx.comment.update({
+          where: { id: commentId },
+          data: { likes: { decrement: 1 } },
+        });
+      });
+    } else {
+      return this.prisma.$transaction(async (tx) => {
+        await tx.commentLike.create({
+          data: { userId, commentId },
+        });
+        return tx.comment.update({
+          where: { id: commentId },
+          data: { likes: { increment: 1 } },
+        });
+      });
+    }
+  }
+
+  /**
+   * Alias for findByArticle (for transition)
+   */
+  async findAllByArticle(articleId: string, _userId?: string) {
+    // In the future, we can use _userId to mark which comments the user has liked
+    return this.findByArticle(articleId);
+  }
+
+  /**
    * Delete a comment (and cascading replies)
    */
   async delete(commentId: string, userId: string) {

@@ -79,7 +79,7 @@ export class AnalyticsQueryService {
    */
   async getAuthorStats(
     authorId: string,
-  ): Promise<AuthorStats & { totalComments: number; totalDislikes: number }> {
+  ): Promise<AuthorStats & { totalComments: number }> {
     const [
       publishedCount,
       scheduledCount,
@@ -113,7 +113,6 @@ export class AnalyticsQueryService {
         _sum: {
           likes: true,
           views: true,
-          dislikes: true,
         },
         where: {
           authorId,
@@ -134,7 +133,6 @@ export class AnalyticsQueryService {
       draftCount,
       totalLikes: aggregates._sum.likes || 0,
       totalViews: aggregates._sum.views || 0,
-      totalDislikes: aggregates._sum.dislikes || 0,
       totalComments,
     };
   }
