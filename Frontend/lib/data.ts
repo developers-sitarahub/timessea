@@ -19,8 +19,6 @@ export type Article = {
   liked: boolean;
   bookmarked: boolean;
   likes: number;
-  dislikes: number;
-  disliked: boolean;
   views: number;
   reads: number;
 
@@ -87,8 +85,6 @@ The future of Web 3 likely lies not in replacing existing systems entirely, but 
     liked: false,
     bookmarked: false,
     likes: 142,
-    dislikes: 12,
-    disliked: false,
     views: 12450,
     reads: 10200,
   },

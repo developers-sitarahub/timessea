@@ -11,7 +11,6 @@ import {
   Share2,
   MoreHorizontal,
   Loader2,
-  ThumbsDown,
   MapPin,
   Clock,
   Eye,
@@ -20,7 +19,9 @@ import {
   Trash2,
   X,
   User,
+  TrendingUp,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import type { Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
@@ -335,24 +336,14 @@ export default function ArticlePage({
     
     const originalLiked = article.liked;
     const originalLikes = article.likes;
-    const originalDisliked = article.disliked;
-    const originalDislikes = article.dislikes || 0;
 
     const willLike = !originalLiked;
-    
-    // Mutual exclusivity
-    let newDislikes = originalDislikes;
-    if (willLike && originalDisliked) {
-      newDislikes = Math.max(0, originalDislikes - 1);
-    }
     
     // Optimistic update
     setArticle({
       ...article,
       liked: willLike,
       likes: willLike ? originalLikes + 1 : Math.max(0, originalLikes - 1),
-      disliked: willLike ? false : originalDisliked,
-      dislikes: newDislikes,
     });
 
     try {
@@ -366,57 +357,11 @@ export default function ArticlePage({
         ...article, 
         liked: originalLiked, 
         likes: originalLikes, 
-        disliked: originalDisliked,
-        dislikes: originalDislikes 
       });
     }
   };
 
-  const handleDislike = async () => {
-    if (!isAuthenticated) {
-      setShowAuthModal(true);
-      return;
-    }
-    if (!article) return;
 
-    const originalLiked = article.liked;
-    const originalLikes = article.likes;
-    const originalDisliked = article.disliked;
-    const originalDislikes = article.dislikes || 0;
-    
-    const willDislike = !originalDisliked;
-
-    // Mutual exclusivity
-    let newLikes = originalLikes;
-    if (willDislike && originalLiked) {
-      newLikes = Math.max(0, originalLikes - 1);
-    }
-    
-    // Optimistic update
-    setArticle({
-      ...article,
-      disliked: willDislike,
-      dislikes: willDislike ? originalDislikes + 1 : Math.max(0, originalDislikes - 1),
-      liked: willDislike ? false : originalLiked,
-      likes: newLikes,
-    });
-
-    try {
-      await fetch(`${API_URL}/api/articles/${id}/dislike`, {
-        method: "POST",
-      });
-    } catch (e) {
-      console.error("Failed to dislike", e);
-      // Revert logic
-      setArticle({
-        ...article,
-        disliked: originalDisliked,
-        dislikes: originalDislikes,
-        liked: originalLiked,
-        likes: originalLikes
-      });
-    }
-  };
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -751,8 +696,11 @@ export default function ArticlePage({
               )}
             </div>
             <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
+                WRITTEN BY
+              </p>
               <h3 className="font-bold text-foreground text-sm leading-tight">
-                By {article.author?.name || "Times Sea Bureau"}
+                {article.author?.name || "Times Sea Bureau"}
               </h3>
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
                 {article.location && (
@@ -781,11 +729,6 @@ export default function ArticlePage({
             <span className="flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
               {article.readTime} min read
-            </span>
-            <span className="text-border">|</span>
-            <span className="flex items-center gap-1">
-              <Eye className="w-3.5 h-3.5" />
-              {article.reads} reads
             </span>
             <span className="text-border">|</span>
             <span>
@@ -958,106 +901,67 @@ export default function ArticlePage({
         {/* ── Section 9: Thin Divider ── */}
         <div className="h-px w-full bg-border/50 my-8 mx-1" />
 
-        {/* ── Section 10: Footer — Author Attribution, The Hindu Style ── */}
-        <div className="px-1">
-          <div className="flex items-start gap-3">
-            <div className="h-12 w-12 overflow-hidden rounded-full ring-2 ring-border/30 shrink-0">
-              {article.author?.picture ? (
-                <img
-                  src={article.author.picture}
-                  alt={article.author.name}
-                  className="h-full w-full object-cover"
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/20 to-primary/5 font-bold text-primary">
-                  {article.author?.name?.charAt(0)}
-                </div>
-              )}
-            </div>
-            <div className="flex-1">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground mb-0.5">
-                Published by
-              </p>
-              <h3 className="font-black text-foreground text-[15px] leading-tight">
-                {article.author?.name || "Times Sea Bureau"}
-              </h3>
 
-              <div className="flex items-center gap-3 mt-2">
-                <span className="text-[11px] text-muted-foreground">
-                  {formatDate(article.createdAt || article.publishedAt)}
-                </span>
-                {article.location && (
-                  <>
-                    <span className="text-border">•</span>
-                    <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {article.location}
-                    </span>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
 
-          {/* Final Action Row — Like, Dislike, Comment, Share */}
-          <div className="flex items-center justify-between mt-6 pt-4 border-t border-border/30">
-            <div className="flex items-center gap-5">
+          {/* ── Section 10: Interaction Bar — Premium Layout ── */}
+          <div className="flex items-center justify-between border-y border-border/40 py-4 my-8 mx-1">
+            <div className="flex items-center gap-6">
               {/* Like */}
-              <button
+              <motion.button
+                whileTap={{ scale: 0.9 }}
                 onClick={handleLike}
                 className={cn(
-                  "flex items-center gap-1.5 text-[13px] font-medium transition-all group",
+                  "flex items-center gap-2 text-[14px] font-bold transition-all group",
                   article.liked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
                 )}
-                aria-label={article.liked ? "Unlike" : "Like"}
               >
-                <Heart className={cn("w-5 h-5 transition-transform group-active:scale-125", article.liked && "fill-current")} strokeWidth={1.8} />
-                {article.likes > 0 && article.likes}
-              </button>
+                <div className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+                  article.liked ? "bg-red-500/10" : "bg-secondary group-hover:bg-red-500/10"
+                )}>
+                  <Heart className={cn("w-5 h-5", article.liked && "fill-current")} strokeWidth={2} />
+                </div>
+                {article.likes > 0 && <span>{article.likes}</span>}
+              </motion.button>
 
-              {/* Dislike */}
-              <button
-                onClick={handleDislike}
-                className={cn(
-                  "flex items-center gap-1.5 text-[13px] font-medium transition-all group",
-                  article.disliked ? "text-foreground" : "text-muted-foreground hover:text-foreground"
-                )}
-                aria-label={article.disliked ? "Remove dislike" : "Dislike"}
-              >
-                <ThumbsDown className={cn("w-5 h-5 transition-transform group-active:scale-125", article.disliked && "fill-current")} strokeWidth={1.8} />
-                {(article.dislikes || 0) > 0 && article.dislikes}
-              </button>
+
 
               {/* Comment */}
-              <button
+              <motion.button
+                whileTap={{ scale: 0.9 }}
                 onClick={handleToggleComments}
                 className={cn(
-                  "flex items-center gap-1.5 text-[13px] font-medium transition-all group",
+                  "flex items-center gap-2 text-[14px] font-bold transition-all group",
                   showCommentSection ? "text-primary" : "text-muted-foreground hover:text-primary"
                 )}
-                aria-label="Comment"
               >
-                <MessageCircle className={cn("w-5 h-5 transition-transform group-active:scale-125", showCommentSection && "fill-primary/10")} strokeWidth={1.8} />
-                {commentCount > 0 ? commentCount : ""} Comment{commentCount !== 1 ? "s" : ""}
-              </button>
+                <div className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+                  showCommentSection ? "bg-primary/10" : "bg-secondary group-hover:bg-primary/10"
+                )}>
+                  <MessageCircle className={cn("w-5 h-5", showCommentSection && "fill-primary/10")} strokeWidth={2} />
+                </div>
+                {commentCount > 0 && <span>{commentCount}</span>}
+              </motion.button>
             </div>
-            <button
+
+            <motion.button
+              whileTap={{ scale: 0.9 }}
               onClick={handleShare}
-              className="flex items-center gap-1.5 text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors group"
-              aria-label="Share"
+              className="flex items-center gap-2 text-[14px] font-bold text-muted-foreground hover:text-foreground transition-all group"
             >
-              <Share2 className="w-5 h-5 transition-transform group-active:scale-125" strokeWidth={1.8} />
-              Share
-            </button>
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary group-hover:bg-foreground/5 transition-colors">
+                <Share2 className="w-5 h-5" strokeWidth={2} />
+              </div>
+              <span className="hidden sm:inline">Share Story</span>
+            </motion.button>
           </div>
 
-          {/* ── Comment Section (below footer) ── */}
+          {/* ── Section 11: Comment Section (Conditional) ── */}
           {showCommentSection && (
-            <div className="mt-6 pt-4 border-t border-border/30 animate-in slide-in-from-top-2 duration-300">
-              {/* Comment Input */}
-              <div className="flex items-start gap-2.5 mb-4">
-                <div className="h-8 w-8 rounded-full bg-secondary shrink-0 overflow-hidden ring-1 ring-border/30">
+            <div className="mb-10 px-1 animate-in slide-in-from-top-4 duration-500">
+              <div className="flex items-start gap-3 mb-6">
+                <div className="h-9 w-9 rounded-full bg-secondary shrink-0 overflow-hidden ring-1 ring-border/50">
                   {user?.picture ? (
                     <img src={user.picture} alt="" className="h-full w-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
@@ -1066,42 +970,45 @@ export default function ArticlePage({
                     </div>
                   )}
                 </div>
-                <div className="flex-1 flex items-center bg-secondary/50 rounded-full border border-border/50 px-3 py-2">
+                <div className="flex-1 relative">
                   <input
                     type="text"
-                    placeholder="Add a comment..."
+                    placeholder="Engage with this story..."
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && submitComment()}
-                    className="flex-1 bg-transparent text-[13px] text-foreground outline-none placeholder:text-muted-foreground/60"
+                    className="w-full bg-secondary/40 rounded-2xl border border-border/50 px-4 py-2.5 text-[14px] text-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-secondary/60 focus:border-primary/30 transition-all font-medium"
                   />
                   {commentText.trim() && (
                     <button
                       onClick={submitComment}
                       disabled={submittingComment}
-                      className="text-primary font-bold text-[13px] ml-2 hover:text-primary/80 transition-colors disabled:opacity-50"
+                      className="absolute right-2 top-1.5 h-7 px-3 bg-primary text-primary-foreground rounded-lg font-bold text-[11px] uppercase tracking-wide disabled:opacity-50"
                     >
-                      {submittingComment ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        "Post"
-                      )}
+                      {submittingComment ? <Loader2 className="w-3 h-3 animate-spin" /> : "Post"}
                     </button>
                   )}
                 </div>
               </div>
 
-              {/* Comments List */}
               {loadingComments ? (
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+                <div className="space-y-4">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="flex gap-3 animate-pulse">
+                      <div className="h-8 w-8 rounded-full bg-secondary" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 w-24 bg-secondary rounded" />
+                        <div className="h-3 w-full bg-secondary rounded" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : comments.length === 0 ? (
-                <p className="text-center text-[13px] text-muted-foreground py-4">
-                  No comments yet. Be the first to comment!
-                </p>
+                <div className="text-center py-8 rounded-2xl bg-secondary/20 border border-dashed border-border/50">
+                  <p className="text-[13px] font-medium text-muted-foreground">No conversations yet. Start the discussion.</p>
+                </div>
               ) : (
-                <div className="space-y-3 max-h-100 overflow-y-auto pr-1">
+                <div className="space-y-6">
                   {comments.map((comment) => (
                     <CommentItem
                       key={comment.id}
@@ -1120,15 +1027,37 @@ export default function ArticlePage({
               )}
             </div>
           )}
+
+          {/* ── Section 12: Related Stories (Skeleton Loading) ── */}
+          <div className="mt-12 mb-20 px-1 border-t border-border/40 pt-10">
+            <h3 className="text-[18px] font-black tracking-tight text-foreground mb-6 flex items-center gap-2 font-serif">
+              <TrendingUp className="w-5 h-5 text-primary" />
+              Related Stories
+            </h3>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="group cursor-wait">
+                  <div className="aspect-[16/9] w-full bg-secondary rounded-2xl mb-3 overflow-hidden animate-pulse relative">
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_2s_infinite]" />
+                  </div>
+                  <div className="space-y-2">
+                    <div className="h-4 w-1/4 bg-secondary rounded-md animate-pulse" />
+                    <div className="h-5 w-full bg-secondary rounded-md animate-pulse" />
+                    <div className="h-5 w-2/3 bg-secondary rounded-md animate-pulse" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
-      
-      <AuthPromptModal
-        isOpen={showAuthModal}
-        onClose={() => setShowAuthModal(false)}
-        onLogin={() => router.push(`/login?redirect=/article/${id}`)}
-      />
-    </AppShell>
+        
+        <AuthPromptModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          onLogin={() => router.push(`/login?redirect=/article/${id}`)}
+        />
+      </AppShell>
   );
 }
 

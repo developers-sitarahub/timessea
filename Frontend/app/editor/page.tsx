@@ -465,8 +465,6 @@ export default function EditorPage() {
     likes: 0,
     views: 0,
     reads: 0,
-    dislikes: 0,
-    disliked: false,
     subheadline,
     location,
     type: articleType as any,

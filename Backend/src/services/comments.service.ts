@@ -19,7 +19,7 @@ export class CommentsService {
         content: data.content,
         article: { connect: { id: data.articleId } },
         author: { connect: { id: data.authorId } },
-        ...(data.parentId ? { parent: { connect: { id: data.parentId } } } : {}),
+        parent: data.parentId ? { connect: { id: data.parentId } } : undefined,
       },
       include: {
         author: {
