@@ -8,7 +8,9 @@ import {
   Delete,
   Query,
   Req,
+  UseGuards,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { ArticlesService } from '../services/articles.service';
 import { CreateArticleDto } from '../modules/articles/dto/create-article.dto';
@@ -26,6 +28,12 @@ export class ArticlesController {
   @Get('scheduled')
   async getScheduled() {
     return this.articlesService.findScheduled();
+  }
+
+  @Get('drafts')
+  @UseGuards(AuthGuard('jwt'))
+  async getDrafts(@Req() req: Request & { user: { id: string } }) {
+    return this.articlesService.findDrafts(req.user.id);
   }
 
   @Get()
@@ -66,8 +74,11 @@ export class ArticlesController {
   }
 
   @Post(':id/view')
-  async incrementViews(@Param('id') id: string, @Req() req: Request) {
-    const viewerId = (req as any).user?.id || req.ip || 'anonymous';
+  async incrementViews(
+    @Param('id') id: string,
+    @Req() req: Request & { user?: { id: string } },
+  ) {
+    const viewerId = req.user?.id || req.ip || 'anonymous';
     return await this.articlesService.incrementViews(id, viewerId);
   }
 

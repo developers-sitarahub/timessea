@@ -19,6 +19,7 @@ model User {
   articles      Article[]
   refreshTokens RefreshToken[]
   comments      Comment[]
+  commentLikes  CommentLike[]
 }
 
 model RefreshToken {
@@ -54,6 +55,17 @@ model Article {
   reads       Int       @default(0)
   media       Json?
 
+  // Article metadata fields
+  subheadline    String?
+  type           String?   @default("News Article")
+  status         String?   @default("Draft")
+  imageCaption   String?
+  imageDescription String?
+  imageCredit    String?
+  seoTitle       String?
+  seoDescription String?
+  factChecked    Boolean   @default(false)
+
   published   Boolean   @default(true)
   scheduledAt DateTime?
   author      User      @relation(fields: [authorId], references: [id])
@@ -78,9 +90,22 @@ model Comment {
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
   parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
   replies   Comment[] @relation("CommentReplies")
+  commentLikes CommentLike[]
 
   @@index([articleId])
   @@index([parentId])
   @@index([authorId])
   @@index([createdAt])
+}
+
+model CommentLike {
+  id        String   @id @default(uuid())
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
 }

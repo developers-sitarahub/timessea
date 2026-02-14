@@ -14,6 +14,7 @@ import {
 import type { Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { useViewTracker } from "@/hooks/use-view-tracker";
+import { CommentsDrawer } from "@/components/comments-drawer";
 
 interface ReelCardProps {
   article: Article;
@@ -50,8 +51,8 @@ export function ReelCard({
   onView,
 }: ReelCardProps) {
   /* eslint-disable react-hooks/exhaustive-deps */
-
   const [showReadMore, setShowReadMore] = useState(false);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const contentRef = useRef<HTMLParagraphElement>(null);
 
@@ -359,6 +360,7 @@ export function ReelCard({
           <button
             type="button"
             className="flex flex-col items-center gap-1 group"
+            onClick={() => setIsCommentsOpen(true)}
           >
             <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-muted/30 text-foreground border border-border/50 flex items-center justify-center shadow-md transition-all transform group-active:scale-90">
               <MessageCircle
@@ -416,6 +418,13 @@ export function ReelCard({
           </span>
         </div>
       )}
+
+      <CommentsDrawer
+        articleId={article.id}
+        open={isCommentsOpen}
+        onOpenChange={setIsCommentsOpen}
+        commentCount={commentCount}
+      />
     </div>
   );
 }
