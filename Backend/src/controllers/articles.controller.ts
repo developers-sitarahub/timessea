@@ -17,6 +17,11 @@ import { CreateArticleDto } from '../modules/articles/dto/create-article.dto';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client';
 
+interface JwtPayload {
+  sub: string;
+  email: string;
+}
+
 @Controller('api/articles')
 export class ArticlesController {
   constructor(
@@ -65,7 +70,18 @@ export class ArticlesController {
     const offsetNum = offset ? parseInt(offset, 10) : 0;
     const hasMediaBool = hasMedia === 'true';
 
-    const userId = this.getUserIdFromRequest(req);
+    let userId: string | undefined;
+    const authHeader = req?.headers?.authorization;
+    // console.log('Auth Header:', authHeader); // Debug log
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = this.jwtService.verify<JwtPayload>(token);
+      } catch (e: any) {
+        // Ignore invalid token, treat as anonymous
+      }
+    }
 
     return this.articlesService.findAll(
       limitNum,
@@ -139,8 +155,11 @@ export class ArticlesController {
   }
 
   @Post(':id/read')
-  async incrementReads(@Param('id') id: string, @Req() req: Request) {
-    const readerId = (req as any).user?.id || req.ip || 'anonymous';
+  async incrementReads(
+    @Param('id') id: string,
+    @Req() req: Request & { user?: { id: string } },
+  ) {
+    const readerId = req.user?.id || req.ip || 'anonymous';
     return await this.articlesService.incrementReads(id, readerId);
   }
 }

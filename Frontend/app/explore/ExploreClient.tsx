@@ -54,12 +54,15 @@ export function ExploreClient({ initialArticles }: ExploreClientProps) {
   const observerTarget = useRef<HTMLDivElement>(null);
 
   const fetchArticles = useCallback(
-    async (currentOffset: number) => {
+    async (currentOffset: number, shouldReplace = false) => {
       try {
         const limit = 10;
         const headers: HeadersInit = {};
         if (token) {
+          console.log("ExploreClient: fetching with token");
           headers["Authorization"] = `Bearer ${token}`;
+        } else {
+          console.log("ExploreClient: fetching without token");
         }
 
         const response = await fetch(
@@ -74,6 +77,8 @@ export function ExploreClient({ initialArticles }: ExploreClientProps) {
         }
 
         setArticles((prev) => {
+          if (shouldReplace) return data;
+
           // Filter out duplicates based on ID
           const newArticles = data.filter(
             (newArt: Article) =>
@@ -90,6 +95,13 @@ export function ExploreClient({ initialArticles }: ExploreClientProps) {
     },
     [token],
   );
+
+  // Refresh articles when token changes (e.g. login)
+  useEffect(() => {
+    if (token) {
+      fetchArticles(0, true);
+    }
+  }, [token, fetchArticles]);
 
   // Removed initial useEffect fetchArticles(0)
 
