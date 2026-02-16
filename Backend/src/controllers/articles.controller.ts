@@ -16,7 +16,6 @@ import { ArticlesService } from '../services/articles.service';
 import { CreateArticleDto } from '../modules/articles/dto/create-article.dto';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client';
-import { OptionalAuthGuard } from '../middlewares/guards/optional-auth.guard';
 
 @Controller('api/articles')
 export class ArticlesController {
@@ -28,6 +27,20 @@ export class ArticlesController {
   @Post()
   async create(@Body() dto: CreateArticleDto) {
     return this.articlesService.createFromDto(dto);
+  }
+
+  private getUserIdFromRequest(req?: Request): string | undefined {
+    const authHeader = req?.headers?.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = this.jwtService.verify(token);
+        return decoded.sub;
+      } catch {
+        // Ignore invalid token
+      }
+    }
+    return undefined;
   }
 
   @Get('scheduled')
@@ -52,17 +65,7 @@ export class ArticlesController {
     const offsetNum = offset ? parseInt(offset, 10) : 0;
     const hasMediaBool = hasMedia === 'true';
 
-    let userId: string | undefined;
-    const authHeader = req?.headers?.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      try {
-        const decoded = this.jwtService.verify(token);
-        userId = decoded.sub;
-      } catch {
-        // Ignore invalid token, treat as anonymous
-      }
-    }
+    const userId = this.getUserIdFromRequest(req);
 
     return this.articlesService.findAll(
       limitNum,
@@ -73,14 +76,13 @@ export class ArticlesController {
   }
 
   @Get(':id')
-  @UseGuards(OptionalAuthGuard)
-  async findOne(@Param('id') id: string, @Req() req?: Request & { user?: { id: string } }) {
-    const userId = req?.user?.id;
+  async findOne(@Param('id') id: string, @Req() req: Request) {
+    const userId = this.getUserIdFromRequest(req);
     return this.articlesService.findOne(id, userId);
   }
 
   @Get(':id/related')
-  @UseGuards(OptionalAuthGuard)
+  @Get(':id/related')
   async findRelated(
     @Param('id') id: string,
     @Query('limit') limit?: string,
@@ -92,7 +94,7 @@ export class ArticlesController {
   }
 
   @Get('trending/all')
-  @UseGuards(OptionalAuthGuard)
+  @Get('trending/all')
   async findTrending(
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,

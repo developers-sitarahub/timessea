@@ -216,7 +216,7 @@ export class ArticlesService {
             picture: true,
           },
         },
-        articleLikes: userId
+        likedBy: userId
           ? {
               where: { userId },
               select: { userId: true },
@@ -229,7 +229,7 @@ export class ArticlesService {
 
     return {
       ...article,
-      liked: userId ? (article as any).articleLikes?.length > 0 : false,
+      liked: userId ? (article as any).likedBy?.length > 0 : false,
     };
   }
 
