@@ -17,6 +17,11 @@ import { CreateArticleDto } from '../modules/articles/dto/create-article.dto';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client';
 
+interface JwtPayload {
+  sub: string;
+  email: string;
+}
+
 @Controller('api/articles')
 export class ArticlesController {
   constructor(
@@ -56,7 +61,7 @@ export class ArticlesController {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
-        const decoded = this.jwtService.verify(token);
+        const decoded = this.jwtService.verify<JwtPayload>(token);
         userId = decoded.sub;
       } catch {
         // Ignore invalid token, treat as anonymous
@@ -110,8 +115,11 @@ export class ArticlesController {
   }
 
   @Post(':id/read')
-  async incrementReads(@Param('id') id: string, @Req() req: Request) {
-    const readerId = (req as any).user?.id || req.ip || 'anonymous';
+  async incrementReads(
+    @Param('id') id: string,
+    @Req() req: Request & { user?: { id: string } },
+  ) {
+    const readerId = req.user?.id || req.ip || 'anonymous';
     return await this.articlesService.incrementReads(id, readerId);
   }
 }

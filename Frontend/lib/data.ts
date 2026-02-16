@@ -18,6 +18,8 @@ export type Article = {
   liked: boolean;
   bookmarked: boolean;
   likes: number;
+  dislikes?: number;
+  disliked?: boolean;
   commentCount?: number;
   views: number;
   reads: number;

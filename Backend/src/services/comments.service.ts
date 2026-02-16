@@ -75,31 +75,51 @@ export class CommentsService {
       orderBy: { createdAt: 'asc' },
     });
 
+    type OriginalComment = (typeof allComments)[0];
+    type CommentNode = Omit<OriginalComment, 'commentLikes'> & {
+      likeCount: number;
+      likedByMe: boolean;
+      replies: CommentNode[];
+    };
+
     // Build tree structure
-    const commentMap = new Map<string, any>();
-    const rootComments: any[] = [];
+    const commentMap = new Map<string, CommentNode>();
+    const rootComments: CommentNode[] = [];
 
     // First pass: create a map of all comments
     for (const comment of allComments) {
-      const { commentLikes, ...rest } = comment as any;
-      const likedByMe = commentLikes?.length > 0;
+      // safe access using unknown cast first then to a type that includes potential extras
+      type RawComment = OriginalComment & {
+        commentLikes?: { userId: string }[];
+      };
+      const rawComment = comment as unknown as RawComment;
 
-      commentMap.set(comment.id, {
+      const commentLikes = rawComment.commentLikes;
+      const likedByMe = commentLikes ? commentLikes.length > 0 : false;
+
+      // Create node without commentLikes property in it
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { commentLikes: _, ...rest } = rawComment;
+
+      const node: CommentNode = {
         ...rest,
-        // Map backend 'likes' to frontend 'likeCount'
-        likeCount: rest.likes,
+        likeCount: rest.likes || 0,
         likedByMe,
         replies: [],
-      });
+      };
+
+      commentMap.set(comment.id, node);
     }
 
     // Second pass: build tree
     for (const comment of allComments) {
       const node = commentMap.get(comment.id);
-      if (comment.parentId && commentMap.has(comment.parentId)) {
-        commentMap.get(comment.parentId).replies.push(node);
-      } else {
-        rootComments.push(node);
+      if (node) {
+        if (comment.parentId && commentMap.has(comment.parentId)) {
+          commentMap.get(comment.parentId)?.replies.push(node);
+        } else {
+          rootComments.push(node);
+        }
       }
     }
 
@@ -114,7 +134,8 @@ export class CommentsService {
       where: { id: articleId },
       select: { commentCount: true },
     });
-    return article?.commentCount || 0;
+    // If article is null or commentCount is missing, default to 0
+    return (article?.commentCount as number) ?? 0;
   }
 
   /**
