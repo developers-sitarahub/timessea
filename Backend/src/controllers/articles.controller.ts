@@ -58,12 +58,13 @@ export class ArticlesController {
 
     let userId: string | undefined;
     const authHeader = req?.headers?.authorization;
+    // console.log('Auth Header:', authHeader); // Debug log
+
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
         const decoded = this.jwtService.verify<JwtPayload>(token);
-        userId = decoded.sub;
-      } catch {
+      } catch (e: any) {
         // Ignore invalid token, treat as anonymous
       }
     }
