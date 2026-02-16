@@ -14,7 +14,6 @@ import {
   ArrowDownRight,
   Share2,
   ThumbsUp,
-  ThumbsDown,
   BookOpen,
 } from "lucide-react"
 import Link from "next/link"
@@ -46,7 +45,6 @@ interface DashboardStats {
   total_views: number;
   active_users: number;
   total_likes: number;
-  total_dislikes: number;
   total_comments: number;
   total_engagement: number;
   total_shares: number;
@@ -125,7 +123,6 @@ export default function DashboardPage() {
     total_views: 0,
     active_users: 0,
     total_likes: 0,
-    total_dislikes: 0,
     total_comments: 0,
     total_engagement: 0,
     total_shares: 0,
@@ -184,11 +181,11 @@ export default function DashboardPage() {
           color="purple"
         />
         <StatCard 
-          label="Dislikes" 
-          value={stats.total_dislikes ? stats.total_dislikes.toLocaleString() : "0"} 
-          trend="Total" 
-          isUp={false} 
-          icon={ThumbsDown} 
+          label="Completion" 
+          value={`${stats.completion_rate}%`} 
+          trend="Avg" 
+          isUp={stats.completion_rate > 50} 
+          icon={TrendingUp} 
           color="orange"
         />
         <StatCard 

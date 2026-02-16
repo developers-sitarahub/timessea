@@ -71,7 +71,6 @@ export default function ProfilePage() {
     totalLikes: 0,
     totalViews: 0,
     totalComments: 0,
-    totalDislikes: 0,
   });
 
   useEffect(() => {

@@ -111,6 +111,7 @@ export class ArticlesService {
       where.OR = [{ image: { not: null } }, { media: { not: Prisma.DbNull } }];
     }
 
+    console.log('ArticlesService: findAll version 12:30');
     const articles = await this.prisma.article.findMany({
       where,
       take: limit,
@@ -210,15 +211,12 @@ export class ArticlesService {
     }
 
     const willLike = !article.liked;
-    const wasDisliked = article.disliked;
 
     return this.prisma.article.update({
       where: { id },
       data: {
         liked: willLike,
         likes: willLike ? article.likes + 1 : Math.max(0, article.likes - 1),
-        disliked: willLike ? false : wasDisliked,
-        dislikes: (willLike && wasDisliked) ? Math.max(0, article.dislikes - 1) : article.dislikes,
       },
       include: { author: true },
     });
@@ -239,26 +237,7 @@ export class ArticlesService {
     });
   }
 
-  async toggleDislike(id: string): Promise<Article> {
-    const article = await this.prisma.article.findUnique({ where: { id } });
-    if (!article) {
-      throw new Error('Article not found');
-    }
 
-    const willDislike = !article.disliked;
-    const wasLiked = article.liked;
-
-    return this.prisma.article.update({
-      where: { id },
-      data: {
-        disliked: willDislike,
-        dislikes: willDislike ? article.dislikes + 1 : Math.max(0, article.dislikes - 1),
-        liked: willDislike ? false : wasLiked,
-        likes: (willDislike && wasLiked) ? Math.max(0, article.likes - 1) : article.likes,
-      },
-      include: { author: true },
-    });
-  }
 
   async incrementViews(id: string, userId: string): Promise<Article> {
     const viewKey = `viewed:${id}:${userId}`;
@@ -316,6 +295,18 @@ export class ArticlesService {
       },
       include: { author: true },
     });
+
+    // Track read event in ClickHouse
+    this.analyticsService
+      .track({
+        event: AnalyticsEventType.POST_READ,
+        post_id: id,
+        user_id: userId,
+        metadata: {
+          source: 'app',
+        },
+      })
+      .catch((err) => console.error('Failed to track read:', err));
 
     return updatedArticle;
   }

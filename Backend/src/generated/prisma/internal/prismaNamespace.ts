@@ -855,8 +855,6 @@ export const ArticleScalarFieldEnum = {
   location: 'location',
   liked: 'liked',
   likes: 'likes',
-  dislikes: 'dislikes',
-  disliked: 'disliked',
   readTime: 'readTime',
   image: 'image',
   views: 'views',

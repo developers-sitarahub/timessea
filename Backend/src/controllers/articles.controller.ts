@@ -73,12 +73,6 @@ export class ArticlesController {
     return await this.articlesService.toggleBookmark(id);
   }
 
-  @Post(':id/dislike')
-  async toggleDislike(@Param('id') id: string) {
-    return await this.articlesService.toggleDislike(id);
-  }
-
-
   @Post(':id/view')
   async incrementViews(
     @Param('id') id: string,

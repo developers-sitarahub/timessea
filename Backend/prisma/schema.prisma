@@ -47,8 +47,6 @@ model Article {
   location    String?
   liked       Boolean   @default(false)
   likes       Int       @default(0)
-  dislikes    Int       @default(0)
-  disliked    Boolean   @default(false)
   readTime    Int       @default(5)
   image       String?
   views       Int       @default(0)
