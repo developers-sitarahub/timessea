@@ -12,9 +12,9 @@ import { formatDistanceToNow } from "date-fns";
 const stripImageMarkdown = (text: string) => {
   // Handle various markdown image formats and raw data URIs
   return text
-    .replace(/!\[.*?\]\s*\(.*?\)/gs, "") // Standard markdown (dotAll)
+    .replace(/!\[.*?\]\s*\(.*?\)/g, "") // Standard markdown (removed dotAll s flag)
     .replace(/!?\[Image\]/g, "")         // Legacy markers [Image] or ![Image]
-    .replace(/\(data:.*?(\)|$)/gs, "")   // Any data URI (images or other)
+    .replace(/\(data:.*?(\)|$)/g, "")   // Any data URI (removed dotAll s flag)
     .trim();
 };
 
@@ -83,7 +83,7 @@ export function ArticleCardFeatured({ article }: { article: Article }) {
               />
             ) : (
               <span>
-                {article.author.avatar || article.author.name.charAt(0)}
+                {article.author.name.charAt(0)}
               </span>
             )}
           </div>
@@ -194,7 +194,7 @@ export function ArticleCardHorizontal({ article }: { article: Article }) {
                 />
               ) : (
                 <span>
-                  {article.author.avatar || article.author.name.charAt(0)}
+                  {article.author.name.charAt(0)}
                 </span>
               )}
             </div>
@@ -252,6 +252,91 @@ export function ArticleCardHorizontal({ article }: { article: Article }) {
             {article.title.charAt(0)}
           </div>
         )}
+      </div>
+    </Link>
+  );
+}
+
+export function ArticleCardVertical({ article }: { article: Article }) {
+  return (
+    <Link
+      href={`/article/${article.id}`}
+      className="group flex flex-col h-full rounded-2xl border border-border/40 bg-card overflow-hidden hover:shadow-lg hover:border-border/80 transition-all duration-300"
+      onClick={() => trackArticleClick(article.id)}
+    >
+      <div className="aspect-video w-full bg-secondary relative overflow-hidden">
+        {article.image ? (
+          <Image
+            src={article.image}
+            alt={article.title}
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-linear-to-br from-secondary to-muted/20">
+             <div className="text-4xl font-black text-foreground/10 font-serif select-none transform group-hover:scale-110 transition-transform duration-500">
+              {article.title.charAt(0)}
+            </div>
+          </div>
+        )}
+        
+        <div className="absolute top-2 left-2">
+            <span className="rounded-full bg-background/90 backdrop-blur-md px-2 py-0.5 text-[9px] font-bold text-foreground shadow-sm uppercase tracking-wider border border-border/50">
+              {article.category}
+            </span>
+        </div>
+      </div>
+
+      <div className="flex flex-1 flex-col p-4">
+        {/* Author & Date */}
+        <div className="mb-2 flex items-center gap-2">
+           <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-[9px] font-bold text-muted-foreground overflow-hidden relative border border-border/50 shrink-0">
+              {article.author.picture ? (
+                <Image
+                  src={article.author.picture}
+                  alt={article.author.name}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center bg-muted">
+                  {article.author.name.charAt(0)}
+                </span>
+              )}
+            </div>
+          <span className="text-[10px] font-medium text-muted-foreground line-clamp-1">
+             {article.author.name} ·{" "}
+              {article.publishedAt ||
+                (article.createdAt &&
+                  formatDistanceToNow(new Date(article.createdAt), {
+                    addSuffix: true,
+                  })) ||
+                "Just now"}
+          </span>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 mb-3">
+           <h3 className="text-sm font-bold leading-snug text-foreground font-serif group-hover:text-primary transition-colors line-clamp-2 mb-1">
+            {article.title}
+          </h3>
+          <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2 font-medium">
+            {stripImageMarkdown(article.subheadline || article.excerpt || "")}
+          </p>
+        </div>
+
+        {/* Footer Metadata */}
+        <div className="mt-auto flex items-center justify-between border-t border-border/40 pt-2">
+           {article.location && (
+             <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-0.5 truncate max-w-32">
+               📍 {article.location}
+             </span>
+           )}
+           <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded-md shrink-0 ml-auto">
+             <Heart className={cn("w-3 h-3", article.liked && "fill-red-500 text-red-500")} />
+             <span>{article.likes}</span>
+           </div>
+        </div>
       </div>
     </Link>
   );

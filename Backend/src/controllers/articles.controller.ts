@@ -34,6 +34,20 @@ export class ArticlesController {
     return this.articlesService.createFromDto(dto);
   }
 
+  private getUserIdFromRequest(req?: Request): string | undefined {
+    const authHeader = req?.headers?.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = this.jwtService.verify(token);
+        return decoded.sub;
+      } catch {
+        // Ignore invalid token
+      }
+    }
+    return undefined;
+  }
+
   @Get('scheduled')
   async getScheduled() {
     return this.articlesService.findScheduled();
@@ -79,8 +93,37 @@ export class ArticlesController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.articlesService.findOne(id);
+  async findOne(@Param('id') id: string, @Req() req: Request) {
+    const userId = this.getUserIdFromRequest(req);
+    return this.articlesService.findOne(id, userId);
+  }
+
+  @Get(':id/related')
+  @Get(':id/related')
+  async findRelated(
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Req() req?: Request,
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) : 4;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const userId = this.getUserIdFromRequest(req);
+    return this.articlesService.findRelated(id, limitNum, offsetNum, userId);
+  }
+
+  @Get('trending/all')
+  @Get('trending/all')
+  async findTrending(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('excludeId') excludeId?: string,
+    @Req() req?: Request,
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) : 4;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const userId = this.getUserIdFromRequest(req);
+    return this.articlesService.findTrending(limitNum, offsetNum, excludeId, userId);
   }
 
   @Put(':id')
@@ -123,5 +166,10 @@ export class ArticlesController {
   ) {
     const readerId = req.user?.id || req.ip || 'anonymous';
     return await this.articlesService.incrementReads(id, readerId);
+  }
+
+  @Post('sync-counts')
+  async syncCounts() {
+    return this.articlesService.backfillCommentCounts();
   }
 }

@@ -19,8 +19,8 @@ interface Comment {
   content: string;
   createdAt: string;
   author: User;
-  likeCount: number;
-  likedByMe: boolean;
+  likes: number;
+  liked: boolean;
   replies: Comment[];
   parentId: string | null;
 }
@@ -147,9 +147,9 @@ const CommentItem = ({
             >
               Reply
             </button>
-            {comment.likeCount > 0 && (
+            {comment.likes > 0 && (
               <span className="text-xs text-muted-foreground">
-                {comment.likeCount} likes
+                {comment.likes} likes
               </span>
             )}
           </div>
@@ -159,7 +159,7 @@ const CommentItem = ({
           <Heart
             className={cn(
               "h-4 w-4",
-              comment.likedByMe
+              comment.liked
                 ? "fill-red-500 text-red-500"
                 : "text-muted-foreground",
             )}
@@ -250,8 +250,8 @@ export function CommentsDrawer({
         name: user.name || "User",
         picture: user.picture || null,
       },
-      likeCount: 0,
-      likedByMe: false,
+      likes: 0,
+      liked: false,
       replies: [],
       parentId: parentId,
     };
@@ -309,8 +309,8 @@ export function CommentsDrawer({
     setComments((prev) =>
       updateCommentInTree(prev, commentId, (c) => ({
         ...c,
-        likedByMe: !c.likedByMe,
-        likeCount: c.likedByMe ? c.likeCount - 1 : c.likeCount + 1,
+        liked: !c.liked,
+        likes: c.liked ? c.likes - 1 : c.likes + 1,
       })),
     );
 
@@ -327,8 +327,8 @@ export function CommentsDrawer({
       setComments((prev) =>
         updateCommentInTree(prev, commentId, (c) => ({
           ...c,
-          likedByMe: !c.likedByMe,
-          likeCount: c.likedByMe ? c.likeCount + 1 : c.likeCount - 1, // Inverse
+          liked: !c.liked,
+          likes: c.liked ? c.likes + 1 : c.likes - 1, // Inverse
         })),
       );
     }
