@@ -14,11 +14,15 @@ import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { ArticlesService } from '../services/articles.service';
 import { CreateArticleDto } from '../modules/articles/dto/create-article.dto';
+import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client';
 
 @Controller('api/articles')
 export class ArticlesController {
-  constructor(private readonly articlesService: ArticlesService) {}
+  constructor(
+    private readonly articlesService: ArticlesService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   @Post()
   async create(@Body() dto: CreateArticleDto) {
@@ -37,15 +41,34 @@ export class ArticlesController {
   }
 
   @Get()
-  findAll(
+  async findAll(
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('hasMedia') hasMedia?: string,
+    @Req() req?: Request,
   ) {
     const limitNum = limit ? parseInt(limit, 10) : 20;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
     const hasMediaBool = hasMedia === 'true';
-    return this.articlesService.findAll(limitNum, offsetNum, hasMediaBool);
+
+    let userId: string | undefined;
+    const authHeader = req?.headers?.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = this.jwtService.verify(token);
+        userId = decoded.sub;
+      } catch {
+        // Ignore invalid token, treat as anonymous
+      }
+    }
+
+    return this.articlesService.findAll(
+      limitNum,
+      offsetNum,
+      hasMediaBool,
+      userId,
+    );
   }
 
   @Get(':id')
@@ -64,8 +87,12 @@ export class ArticlesController {
   }
 
   @Post(':id/like')
-  async toggleLike(@Param('id') id: string) {
-    return await this.articlesService.toggleLike(id);
+  @UseGuards(AuthGuard('jwt'))
+  async toggleLike(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { id: string } },
+  ) {
+    return await this.articlesService.toggleLike(id, req.user.id);
   }
 
   @Post(':id/bookmark')

@@ -57,7 +57,16 @@ export function ReelCard({
   const contentRef = useRef<HTMLParagraphElement>(null);
 
   const keyPoints = extractKeyPoints(article.content);
-  const commentCount = Math.floor(article.likes * 0.3);
+  // Initialize comment count state - use prop value for instant display, then fetch fresh
+  const [commentCount, setCommentCount] = useState(article.commentCount || 0);
+
+  useEffect(() => {
+    // Fetch comment count
+    fetch(`http://localhost:5000/api/comments/article/${article.id}/count`)
+      .then((res) => res.json())
+      .then((data) => setCommentCount(data.count))
+      .catch((err) => console.error("Failed to fetch comment count", err));
+  }, [article.id]);
 
   // Use the new centralized view tracker (10s threshold for articles)
   const { elementRef } = useViewTracker({
@@ -424,6 +433,7 @@ export function ReelCard({
         open={isCommentsOpen}
         onOpenChange={setIsCommentsOpen}
         commentCount={commentCount}
+        onCommentAdded={() => setCommentCount((prev) => prev + 1)}
       />
     </div>
   );

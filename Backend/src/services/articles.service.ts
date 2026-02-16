@@ -101,7 +101,12 @@ export class ArticlesService {
     return this.prisma.article.create({ data });
   }
 
-  async findAll(limit = 20, offset = 0, hasMedia = false): Promise<Article[]> {
+  async findAll(
+    limit = 20,
+    offset = 0,
+    hasMedia = false,
+    userId?: string,
+  ): Promise<any[]> {
     const start = Date.now();
     const where: Prisma.ArticleWhereInput = {
       published: true,
@@ -125,11 +130,24 @@ export class ArticlesService {
             picture: true,
           },
         },
+        likedBy: userId
+          ? {
+              where: { userId },
+              select: { id: true },
+            }
+          : undefined,
       },
       orderBy: { createdAt: 'desc' },
     });
     console.log(`findAll took ${Date.now() - start}ms for ${limit} items`);
-    return articles;
+
+    return articles.map((article) => {
+      const { likedBy, ...rest } = article as any;
+      return {
+        ...rest,
+        liked: likedBy?.length > 0,
+      };
+    });
   }
 
   async findScheduled(): Promise<Article[]> {
@@ -204,22 +222,61 @@ export class ArticlesService {
     return this.prisma.article.delete({ where: { id } });
   }
 
-  async toggleLike(id: string): Promise<Article> {
+  async toggleLike(id: string, userId: string): Promise<Article> {
     const article = await this.prisma.article.findUnique({ where: { id } });
     if (!article) {
       throw new Error('Article not found');
     }
 
-    const willLike = !article.liked;
-
-    return this.prisma.article.update({
-      where: { id },
-      data: {
-        liked: willLike,
-        likes: willLike ? article.likes + 1 : Math.max(0, article.likes - 1),
+    const existingLike = await this.prisma.articleLike.findUnique({
+      where: {
+        userId_articleId: {
+          userId,
+          articleId: id,
+        },
       },
-      include: { author: true },
     });
+
+    if (existingLike) {
+      // Unlike
+      await this.prisma.$transaction([
+        this.prisma.articleLike.delete({
+          where: {
+            userId_articleId: {
+              userId,
+              articleId: id,
+            },
+          },
+        }),
+        this.prisma.article.update({
+          where: { id },
+          data: {
+            likes: { decrement: 1 },
+          },
+        }),
+      ]);
+    } else {
+      // Like
+      await this.prisma.$transaction([
+        this.prisma.articleLike.create({
+          data: {
+            userId,
+            articleId: id,
+          },
+        }),
+        this.prisma.article.update({
+          where: { id },
+          data: {
+            likes: { increment: 1 },
+          },
+        }),
+      ]);
+    }
+
+    return this.prisma.article.findUnique({
+      where: { id },
+      include: { author: true },
+    }) as Promise<Article>;
   }
 
   async toggleBookmark(id: string): Promise<Article> {
@@ -236,8 +293,6 @@ export class ArticlesService {
       include: { author: true },
     });
   }
-
-
 
   async incrementViews(id: string, userId: string): Promise<Article> {
     const viewKey = `viewed:${id}:${userId}`;
