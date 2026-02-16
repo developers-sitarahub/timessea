@@ -77,8 +77,7 @@ export class CommentsService {
 
     type OriginalComment = (typeof allComments)[0];
     type CommentNode = Omit<OriginalComment, 'commentLikes'> & {
-      likeCount: number;
-      likedByMe: boolean;
+      liked: boolean;
       replies: CommentNode[];
     };
 
@@ -95,16 +94,15 @@ export class CommentsService {
       const rawComment = comment as unknown as RawComment;
 
       const commentLikes = rawComment.commentLikes;
-      const likedByMe = commentLikes ? commentLikes.length > 0 : false;
+      const liked = !!(commentLikes && commentLikes.length > 0);
 
       // Create node without commentLikes property in it
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { commentLikes: _, ...rest } = rawComment;
 
       const node: CommentNode = {
-        ...rest,
-        likeCount: rest.likes || 0,
-        likedByMe,
+        ...(rest as any),
+        liked,
         replies: [],
       };
 
