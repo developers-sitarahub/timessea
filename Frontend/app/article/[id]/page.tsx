@@ -866,7 +866,7 @@ export default function ArticlePage({
                 {article.title}
                 <span className="text-muted-foreground/70 not-italic">
                   {" "}
-                  | Photo: Special Arrangement
+                  {/* | Photo: Special Arrangement */}
                 </span>
               </p>
             )}

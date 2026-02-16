@@ -3,7 +3,8 @@ import type { Metadata, Viewport } from "next";
 import { Inter, Source_Serif_4 } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { AnalyticsTracker } from "@/components/AnalyticsTracker"
+import { AnalyticsTracker } from "@/components/AnalyticsTracker";
+import { ToastProvider } from "@/components/toast-provider";
 
 import "./globals.css";
 
@@ -44,6 +45,7 @@ export default function RootLayout({
         >
           <AnalyticsTracker />
           <AuthProvider>{children}</AuthProvider>
+          <ToastProvider />
         </ThemeProvider>
       </body>
     </html>

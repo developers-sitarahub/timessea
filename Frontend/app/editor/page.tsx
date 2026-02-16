@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { EditorAuthOverlay } from "@/components/editor-auth-overlay";
@@ -14,7 +14,7 @@ import {
   ListOrdered,
   Quote,
   Heading2,
-  Link2,
+  Link,
   ImagePlus,
   Eye,
   Send,
@@ -34,6 +34,9 @@ import {
   ArticleCardHorizontal,
 } from "@/components/article-card";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "react-toastify";
+import { showConfirmDelete } from "@/lib/confirm-delete";
+import { ContentBlock } from "@/components/content-block";
 
 export default function EditorPage() {
   const router = useRouter();
@@ -42,7 +45,12 @@ export default function EditorPage() {
 
   const [title, setTitle] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  type Block = { id: string; type: "text" | "image"; content: string };
+  type Block = {
+    id: string;
+    type: "text" | "image";
+    content: string;
+    caption?: string;
+  };
   const [blocks, setBlocks] = useState<Block[]>([
     { id: crypto.randomUUID(), type: "text", content: "" },
   ]);
@@ -57,6 +65,8 @@ export default function EditorPage() {
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
+  const activeTextAreaRef = useRef<HTMLElement | null>(null);
+  const [activeActions, setActiveActions] = useState<string[]>([]);
 
   // Schedule state
   const [scheduledAt, setScheduledAt] = useState<string>("");
@@ -64,7 +74,6 @@ export default function EditorPage() {
 
   // Use user from AuthContext
   // User state is handled by useAuth
-
 
   // Tab state for Editor vs Scheduled
   const [activeTab, setActiveTab] = useState<"editor" | "scheduled">("editor");
@@ -95,19 +104,65 @@ export default function EditorPage() {
     "Review",
   ];
 
+  const updateActiveActions = useCallback(() => {
+    if (typeof document === "undefined") return;
+    const actions: string[] = [];
+    if (document.queryCommandState("bold")) actions.push("Bold");
+    if (document.queryCommandState("italic")) actions.push("Italic");
+    if (document.queryCommandState("insertUnorderedList")) actions.push("List");
+    if (document.queryCommandState("insertOrderedList"))
+      actions.push("Ordered List");
+
+    const blockType = document.queryCommandValue("formatBlock");
+    if (blockType === "h2") actions.push("Heading");
+    if (blockType === "blockquote") actions.push("Quote");
+
+    setActiveActions(actions);
+  }, []);
+
+  useEffect(() => {
+    const handler = () => updateActiveActions();
+    document.addEventListener("selectionchange", handler);
+    return () => document.removeEventListener("selectionchange", handler);
+  }, [updateActiveActions]);
+
   const toolbarButtons = [
-    { icon: Bold, label: "Bold", action: "**" },
-    { icon: Italic, label: "Italic", action: "_" },
-    { icon: List, label: "List", action: "\n- " },
-    { icon: ListOrdered, label: "Ordered List", action: "\n1. " },
-    { icon: Quote, label: "Quote", action: "\n> " },
-    { icon: Heading2, label: "Heading", action: "\n## " },
-    { icon: Link2, label: "Link", action: "[](url)" },
+    { icon: Bold, label: "Bold", action: "bold" },
+    { icon: Italic, label: "Italic", action: "italic" },
+    { icon: List, label: "List", action: "insertUnorderedList" },
+    { icon: ListOrdered, label: "Ordered List", action: "insertOrderedList" },
+    { icon: Quote, label: "Quote", action: "blockquote" },
+    { icon: Heading2, label: "Heading", action: "h2" },
+    { icon: Link, label: "Link", action: "createLink" },
     { icon: ImagePlus, label: "Image", action: "image" },
   ];
 
-  // Removed local storage user loading
+  const handleToolbarAction = (btn: any) => {
+    if (btn.label === "Image") {
+      fileInputRef.current?.click();
+      return;
+    }
 
+    if (!activeTextAreaRef.current) return;
+    activeTextAreaRef.current.focus();
+
+    if (btn.label === "Heading") {
+      const isH2 = document.queryCommandValue("formatBlock") === "h2";
+      document.execCommand("formatBlock", false, isH2 ? "p" : "h2");
+    } else if (btn.label === "Quote") {
+      const isQuote =
+        document.queryCommandValue("formatBlock") === "blockquote";
+      document.execCommand("formatBlock", false, isQuote ? "p" : "blockquote");
+    } else if (btn.label === "Link") {
+      const url = prompt("Enter link URL:");
+      if (url) document.execCommand("createLink", false, url);
+    } else {
+      document.execCommand(btn.action, false);
+    }
+    updateActiveActions();
+  };
+
+  // Removed local storage user loading
 
   // Load draft if draft ID is present
   useEffect(() => {
@@ -151,7 +206,7 @@ export default function EditorPage() {
       // Parse content into blocks
       if (article.content) {
         const contentBlocks: Block[] = [];
-        const imageRegex = /!\[Image\]\((.+?)\)/g;
+        const imageRegex = /!\[(.*?)\]\((.+?)\)/g;
         let lastIndex = 0;
         let match;
 
@@ -172,7 +227,8 @@ export default function EditorPage() {
           contentBlocks.push({
             id: crypto.randomUUID(),
             type: "image",
-            content: match[1],
+            content: match[2],
+            caption: match[1] === "Image" ? "" : match[1],
           });
 
           lastIndex = imageRegex.lastIndex;
@@ -204,7 +260,7 @@ export default function EditorPage() {
       }
     } catch (error) {
       console.error("Error loading draft:", error);
-      alert("Failed to load draft. Please try again.");
+      toast.error("Failed to load draft. Please try again.");
     } finally {
       setIsLoadingDraft(false);
     }
@@ -259,6 +315,7 @@ export default function EditorPage() {
           id: crypto.randomUUID(),
           type: "image",
           content: base64String,
+          caption: "",
         };
         const newTextBlock: Block = {
           id: crypto.randomUUID(),
@@ -273,13 +330,18 @@ export default function EditorPage() {
   };
 
   const fullContent = blocks
-    .map((b) => (b.type === "image" ? `\n![Image](${b.content})\n` : b.content))
+    .map((b) =>
+      b.type === "image"
+        ? `\n![${b.caption || "Image"}](${b.content})\n`
+        : b.content,
+    )
     .join("\n");
 
   const wordCount = blocks
     .filter((b) => b.type === "text")
     .map((b) => b.content)
     .join(" ")
+    .replace(/<[^>]*>/g, " ")
     .trim()
     .split(/\s+/)
     .filter((w) => w.length > 0).length;
@@ -339,7 +401,7 @@ export default function EditorPage() {
         method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -353,6 +415,7 @@ export default function EditorPage() {
       }
 
       setPublished(true);
+      toast.success("Article published successfully! Redirecting...");
 
       // If scheduled, switch to Scheduled tab
       if (scheduledAt) {
@@ -378,6 +441,11 @@ export default function EditorPage() {
   const handleSaveDraft = async () => {
     if (!isAuthenticated) {
       setShowLoginOverlay(true);
+      return;
+    }
+
+    if (!title.trim() || !subheadline.trim()) {
+      toast.error("Both Headline and Summary are required.");
       return;
     }
     setIsSavingDraft(true);
@@ -425,7 +493,7 @@ export default function EditorPage() {
         method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(draftPayload),
       });
@@ -435,6 +503,7 @@ export default function EditorPage() {
       }
 
       setSaved(true);
+      toast.success("Draft saved successfully!");
       setTimeout(() => {
         setSaved(false);
         // Redirect to drafts page
@@ -447,24 +516,30 @@ export default function EditorPage() {
     }
   };
 
-  const handleDelete = async (postId: string) => {
-    if (!confirm("Are you sure you want to delete this scheduled post?"))
-      return;
-    try {
-      const res = await fetch(`http://localhost:5000/api/articles/${postId}`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-        },
-      });
-      if (res.ok) {
-        setScheduledPosts((prev) => prev.filter((p) => p.id !== postId));
-      } else {
-        console.error("Failed to delete post");
+  const handleDelete = (postId: string) => {
+    showConfirmDelete(async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:5000/api/articles/${postId}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+        if (res.ok) {
+          setScheduledPosts((prev) => prev.filter((p) => p.id !== postId));
+          toast.success("Post deleted successfully");
+        } else {
+          console.error("Failed to delete post");
+          toast.error("Failed to delete post");
+        }
+      } catch (error) {
+        console.error("Error deleting post:", error);
+        toast.error("An error occurred while deleting the post");
       }
-    } catch (error) {
-      console.error("Error deleting post:", error);
-    }
+    }, "Are you sure you want to delete this scheduled post?");
   };
 
   const previewArticle: Article = {
@@ -525,17 +600,6 @@ export default function EditorPage() {
       {/* Header */}
       <header className="sticky top-0 z-40 mb-6 flex items-center justify-between gap-2 overflow-x-auto bg-background/95 backdrop-blur-sm pb-4 -mx-4 px-4">
         <div className="flex items-center gap-2 shrink-0">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            type="button"
-            onClick={() => router.back()}
-            aria-label="Go back"
-            className="rounded-full bg-secondary/50 p-2 text-foreground transition-colors hover:bg-secondary shrink-0"
-          >
-            <ArrowLeft className="h-5 w-5" strokeWidth={2} />
-          </motion.button>
-
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -602,11 +666,13 @@ export default function EditorPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               type="button"
-              disabled={!title.trim() || !fullContent.trim()}
+              disabled={
+                !title.trim() || !subheadline.trim() || !fullContent.trim()
+              }
               onClick={() => setIsPreview(true)}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-background shadow-md transition-all",
-                !title.trim() || !fullContent.trim()
+                !title.trim() || !subheadline.trim() || !fullContent.trim()
                   ? "bg-muted text-muted-foreground shadow-none cursor-not-allowed"
                   : "bg-primary text-primary-foreground hover:bg-primary/90",
               )}
@@ -676,21 +742,6 @@ export default function EditorPage() {
               </div>
             </motion.div>
           </>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence mode="wait">
-        {published && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="mb-6 rounded-2xl border border-green-500/20 bg-green-500/10 p-4 text-center"
-          >
-            <p className="text-sm font-semibold text-green-500">
-              Your article has been published successfully! Redirecting...
-            </p>
-          </motion.div>
         )}
       </AnimatePresence>
 
@@ -872,16 +923,13 @@ export default function EditorPage() {
                         </motion.div>
                       );
                     }
-                    return block.content
-                      .split("\n\n")
-                      .map((paragraph, index) => (
-                        <p
-                          key={`${block.id}-${index}`}
-                          className="leading-relaxed"
-                        >
-                          {paragraph}
-                        </p>
-                      ));
+                    return (
+                      <div
+                        key={block.id}
+                        className="mb-4 prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: block.content }}
+                      />
+                    );
                   })
                 ) : (
                   <p className="italic text-muted-foreground/50">
@@ -957,12 +1005,14 @@ export default function EditorPage() {
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full bg-transparent text-4xl font-black placeholder:text-muted-foreground/20 focus:outline-none font-serif tracking-tight py-2 border-b-2 border-transparent focus:border-primary/20 transition-colors"
                 />
-                <input
-                  type="text"
-                  placeholder="Subheadline / Deck (Optional)"
-                  value={subheadline}
-                  onChange={(e) => setSubheadline(e.target.value)}
-                  className="w-full bg-transparent text-xl font-medium placeholder:text-muted-foreground/30 focus:outline-none tracking-tight py-2 border-b border-transparent focus:border-primary/20 transition-colors text-muted-foreground"
+                <ContentBlock
+                  html={subheadline}
+                  onChange={(html) => setSubheadline(html)}
+                  onFocus={(e: React.FocusEvent<HTMLDivElement>) => {
+                    setActiveBlockId("summary");
+                    activeTextAreaRef.current = e.currentTarget;
+                  }}
+                  className="w-full bg-transparent text-xl font-medium placeholder:text-muted-foreground/30 focus:outline-none tracking-tight py-2 border-b border-transparent focus:border-primary/20 transition-colors text-muted-foreground outline-none empty:before:content-['Summary'] empty:before:text-muted-foreground/30 prose-p:m-0"
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -998,6 +1048,38 @@ export default function EditorPage() {
                   </div>
                 </div>
 
+                {/* Category Selector */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                    <Settings2 className="w-3 h-3" /> Category
+                  </label>
+                  <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-2 snap-x">
+                    {categories
+                      .filter((c) => c !== "Trending")
+                      .map((category) => (
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          key={category}
+                          type="button"
+                          onClick={() =>
+                            setSelectedCategory(
+                              selectedCategory === category ? "" : category,
+                            )
+                          }
+                          className={cn(
+                            "snap-start shrink-0 rounded-full px-4 py-2 text-xs font-bold transition-all shadow-sm border border-transparent",
+                            selectedCategory === category
+                              ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20 ring-offset-2 ring-offset-background"
+                              : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary hover:text-foreground",
+                          )}
+                        >
+                          {category}
+                        </motion.button>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Cover Image Upload */}
                 <div className="relative">
                   {imageUrl ? (
                     <div className="space-y-4">
@@ -1046,128 +1128,6 @@ export default function EditorPage() {
                 </div>
               </div>
 
-              {/* Category Selector */}
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <Settings2 className="w-3 h-3" /> Category
-                </label>
-                <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-2 snap-x">
-                  {categories
-                    .filter((c) => c !== "Trending")
-                    .map((category) => (
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        key={category}
-                        type="button"
-                        onClick={() =>
-                          setSelectedCategory(
-                            selectedCategory === category ? "" : category,
-                          )
-                        }
-                        className={cn(
-                          "snap-start shrink-0 rounded-full px-4 py-2 text-xs font-bold transition-all shadow-sm border border-transparent",
-                          selectedCategory === category
-                            ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20 ring-offset-2 ring-offset-background"
-                            : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary hover:text-foreground",
-                        )}
-                      >
-                        {category}
-                      </motion.button>
-                    ))}
-                </div>
-              </div>
-
-              {/* Advanced Panels */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Trust & Verification */}
-                <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                    Trust & Verification
-                  </h3>
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <div
-                        className={cn(
-                          "h-4 w-4 rounded border flex items-center justify-center transition-colors",
-                          factChecked
-                            ? "bg-green-500 border-green-500 text-white"
-                            : "border-muted-foreground/30",
-                        )}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={factChecked}
-                          onChange={(e) => setFactChecked(e.target.checked)}
-                          className="hidden"
-                        />
-                        {factChecked && (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="3"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="w-3 h-3"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-                        Fact-checked content
-                      </span>
-                    </label>
-                    <div>
-                      <label className="text-[10px] font-bold text-muted-foreground">
-                        Sources (Optional)
-                      </label>
-                      <textarea
-                        placeholder="List primary sources here..."
-                        className="w-full h-16 bg-secondary/30 rounded-lg p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/20 resize-none mt-1"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* SEO & Distribution */}
-                <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                    SEO & Distribution
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[10px] font-bold text-muted-foreground">
-                        Meta Title
-                      </label>
-                      <input
-                        type="text"
-                        placeholder={title || "Article Title"}
-                        value={seoTitle}
-                        onChange={(e) => setSeoTitle(e.target.value)}
-                        className="w-full bg-secondary/30 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/20 mt-1"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-muted-foreground">
-                        Meta Description
-                      </label>
-                      <textarea
-                        placeholder={
-                          subheadline || "Summary for search engines..."
-                        }
-                        value={seoDescription}
-                        onChange={(e) => setSeoDescription(e.target.value)}
-                        className="w-full h-16 bg-secondary/30 rounded-lg p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/20 resize-none mt-1"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
               {/* Editor Container */}
               <div className="rounded-3xl border border-border bg-card shadow-sm overflow-hidden focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all duration-300">
                 {/* Toolbar */}
@@ -1181,22 +1141,15 @@ export default function EditorPage() {
                       whileTap={{ scale: 0.9 }}
                       key={btn.label}
                       type="button"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors"
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                        activeActions.includes(btn.label)
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-secondary",
+                      )}
                       title={btn.label}
-                      onClick={() => {
-                        if (btn.label === "Image") {
-                          fileInputRef.current?.click();
-                        } else {
-                          // Insert action into active block
-                          setBlocks((prev) =>
-                            prev.map((b) =>
-                              b.id === activeBlockId
-                                ? { ...b, content: b.content + btn.action }
-                                : b,
-                            ),
-                          );
-                        }
-                      }}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleToolbarAction(btn)}
                     >
                       <btn.icon className="h-4 w-4" strokeWidth={2} />
                       <span className="sr-only">{btn.label}</span>
@@ -1215,8 +1168,24 @@ export default function EditorPage() {
                         <div key={block.id} className="relative group my-4">
                           <img
                             src={block.content}
-                            alt="Inserted"
+                            alt={block.caption || "Inserted"}
                             className="w-full rounded-lg object-cover max-h-125"
+                          />
+                          <input
+                            type="text"
+                            placeholder="Type caption for image (optional)"
+                            value={block.caption || ""}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setBlocks((prev) =>
+                                prev.map((b) =>
+                                  b.id === block.id
+                                    ? { ...b, caption: val }
+                                    : b,
+                                ),
+                              );
+                            }}
+                            className="mt-2 w-full text-center text-sm text-muted-foreground bg-transparent border-none focus:outline-none placeholder:text-muted-foreground/50"
                           />
                           <button
                             onClick={() => {
@@ -1246,27 +1215,21 @@ export default function EditorPage() {
                     }
 
                     return (
-                      <textarea
+                      <ContentBlock
                         key={block.id}
-                        placeholder={
-                          index === 0 ? "Start writing your story..." : ""
-                        }
-                        value={block.content}
-                        onChange={(e) => {
-                          const val = e.target.value;
+                        html={block.content}
+                        onChange={(html: string) => {
                           setBlocks((prev) =>
                             prev.map((b) =>
-                              b.id === block.id ? { ...b, content: val } : b,
+                              b.id === block.id ? { ...b, content: html } : b,
                             ),
                           );
-                          // Auto-resize
-                          e.target.style.height = "auto";
-                          e.target.style.height = e.target.scrollHeight + "px";
                         }}
-                        onFocus={() => setActiveBlockId(block.id)}
-                        className="w-full resize-none bg-transparent text-base leading-relaxed placeholder:text-muted-foreground/30 focus:outline-none font-medium text-foreground overflow-hidden"
-                        style={{ height: "auto" }}
-                        rows={1}
+                        onFocus={(e: React.FocusEvent<HTMLDivElement>) => {
+                          setActiveBlockId(block.id);
+                          activeTextAreaRef.current = e.currentTarget;
+                        }}
+                        className="w-full bg-transparent text-base leading-relaxed placeholder:text-muted-foreground/30 focus:outline-none font-medium text-foreground outline-none empty:before:content-['Start_writing...'] empty:before:text-muted-foreground/20 prose prose-sm dark:prose-invert max-w-none prose-p:m-0 prose-headings:m-0 prose-h2:text-xl prose-h2:font-bold prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-blockquote:italic"
                       />
                     );
                   })}

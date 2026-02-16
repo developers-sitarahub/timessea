@@ -13,8 +13,8 @@ const stripImageMarkdown = (text: string) => {
   // Handle various markdown image formats and raw data URIs
   return text
     .replace(/!\[.*?\]\s*\(.*?\)/gs, "") // Standard markdown (dotAll)
-    .replace(/!?\[Image\]/g, "")         // Legacy markers [Image] or ![Image]
-    .replace(/\(data:.*?(\)|$)/gs, "")   // Any data URI (images or other)
+    .replace(/!?\[Image\]/g, "") // Legacy markers [Image] or ![Image]
+    .replace(/\(data:.*?(\)|$)/gs, "") // Any data URI (images or other)
     .trim();
 };
 
@@ -82,9 +82,7 @@ export function ArticleCardFeatured({ article }: { article: Article }) {
                 className="object-cover"
               />
             ) : (
-              <span>
-                {article.author.avatar || article.author.name.charAt(0)}
-              </span>
+              <span>{article.author.name.charAt(0)}</span>
             )}
           </div>
           <div>
@@ -193,9 +191,7 @@ export function ArticleCardHorizontal({ article }: { article: Article }) {
                   className="object-cover"
                 />
               ) : (
-                <span>
-                  {article.author.avatar || article.author.name.charAt(0)}
-                </span>
+                <span>{article.author.name.charAt(0)}</span>
               )}
             </div>
             <span className="text-[11px] font-semibold text-muted-foreground">
