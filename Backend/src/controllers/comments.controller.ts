@@ -11,11 +11,16 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { CommentsService } from '../services/comments.service';
 import { Comment } from '../generated/prisma/client';
 import { CreateCommentDto } from '../modules/comments/dto/create-comment.dto';
 import { JwtService } from '@nestjs/jwt';
+
+interface JwtPayload {
+  sub: string;
+  email: string;
+}
 
 interface RequestWithUser extends Request {
   user: {
@@ -73,7 +78,7 @@ export class CommentsController {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
-        const decoded = this.jwtService.verify(token);
+        const decoded = this.jwtService.verify<JwtPayload>(token);
         userId = decoded.sub;
       } catch {
         // Ignore invalid token
