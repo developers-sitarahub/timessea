@@ -11,7 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { ArticlesService } from '../services/articles.service';
 import { CreateArticleDto } from '../modules/articles/dto/create-article.dto';
 import { JwtService } from '@nestjs/jwt';
@@ -79,7 +79,7 @@ export class ArticlesController {
       try {
         const decoded = this.jwtService.verify<JwtPayload>(token);
         userId = decoded.sub;
-      } catch (e: any) {
+      } catch {
         // Ignore invalid token, treat as anonymous
       }
     }

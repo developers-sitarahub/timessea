@@ -739,7 +739,7 @@ function EditorContent() {
                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                           />
                         ) : (
-                          <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-secondary to-muted">
+                          <div className="h-full w-full flex items-center justify-center bg-linear-to-br from-secondary to-muted">
                             <span className="text-4xl font-black text-foreground/5 font-serif">
                               {post.title.charAt(0)}
                             </span>
