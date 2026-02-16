@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { EditorAuthOverlay } from "@/components/editor-auth-overlay";
@@ -35,7 +35,7 @@ import {
 } from "@/components/article-card";
 import { motion, AnimatePresence } from "framer-motion";
 
-export default function EditorPage() {
+function EditorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const draftId = searchParams.get("draft");
@@ -64,7 +64,6 @@ export default function EditorPage() {
 
   // Use user from AuthContext
   // User state is handled by useAuth
-
 
   // Tab state for Editor vs Scheduled
   const [activeTab, setActiveTab] = useState<"editor" | "scheduled">("editor");
@@ -107,7 +106,6 @@ export default function EditorPage() {
   ];
 
   // Removed local storage user loading
-
 
   // Load draft if draft ID is present
   useEffect(() => {
@@ -339,7 +337,7 @@ export default function EditorPage() {
         method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(payload),
       });
@@ -425,7 +423,7 @@ export default function EditorPage() {
         method,
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(draftPayload),
       });
@@ -454,7 +452,7 @@ export default function EditorPage() {
       const res = await fetch(`http://localhost:5000/api/articles/${postId}`, {
         method: "DELETE",
         headers: {
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       if (res.ok) {
@@ -1282,5 +1280,19 @@ export default function EditorPage() {
         </AnimatePresence>
       </div>
     </AppShell>
+  );
+}
+
+export default function EditorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+          Loading Editor...
+        </div>
+      }
+    >
+      <EditorContent />
+    </Suspense>
   );
 }
