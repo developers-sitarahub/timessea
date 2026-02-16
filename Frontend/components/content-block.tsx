@@ -37,6 +37,20 @@ export const ContentBlock = ({
           onChange(e.currentTarget.innerHTML);
         }
       }}
+      onPaste={(e) => {
+        const text = e.clipboardData.getData("text/plain");
+        // Regex to check if the pasted text is a URL
+        const urlRegex =
+          /^(http(s)?:\/\/.)[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)$/g;
+        if (urlRegex.test(text)) {
+          e.preventDefault();
+          document.execCommand(
+            "insertHTML",
+            false,
+            `<a href="${text}" target="_blank" rel="noopener noreferrer" class="text-primary underline">${text}</a>`,
+          );
+        }
+      }}
     />
   );
 };

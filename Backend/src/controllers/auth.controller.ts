@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from '../services/auth.service';
-import { Response, Request } from 'express';
+import type { Response, Request } from 'express';
 
 @Controller('auth')
 export class AuthController {

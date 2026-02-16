@@ -15,6 +15,8 @@ const stripImageMarkdown = (text: string) => {
     .replace(/!\[.*?\]\s*\(.*?\)/gs, "") // Standard markdown (dotAll)
     .replace(/!?\[Image\]/g, "") // Legacy markers [Image] or ![Image]
     .replace(/\(data:.*?(\)|$)/gs, "") // Any data URI (images or other)
+    .replace(/<figure[^>]*>.*?<\/figure>/gs, "") // HTML figure blocks
+    .replace(/<img[^>]*>/g, "") // HTML img tags
     .trim();
 };
 

@@ -58,6 +58,9 @@ function EditorContent() {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isPreview, setIsPreview] = useState(false);
   const [published, setPublished] = useState(false);
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [savedSelection, setSavedSelection] = useState<Range | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -132,8 +135,6 @@ function EditorContent() {
     { icon: List, label: "List", action: "insertUnorderedList" },
     { icon: ListOrdered, label: "Ordered List", action: "insertOrderedList" },
     { icon: Quote, label: "Quote", action: "blockquote" },
-    { icon: Heading2, label: "Heading", action: "h2" },
-    { icon: Link, label: "Link", action: "createLink" },
     { icon: ImagePlus, label: "Image", action: "image" },
   ];
 
@@ -154,12 +155,31 @@ function EditorContent() {
         document.queryCommandValue("formatBlock") === "blockquote";
       document.execCommand("formatBlock", false, isQuote ? "p" : "blockquote");
     } else if (btn.label === "Link") {
-      const url = prompt("Enter link URL:");
-      if (url) document.execCommand("createLink", false, url);
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        // Save the selection range
+        setSavedSelection(selection.getRangeAt(0));
+        setShowLinkInput(true);
+      }
     } else {
       document.execCommand(btn.action, false);
     }
     updateActiveActions();
+  };
+
+  const handleLinkSubmit = () => {
+    if (savedSelection && linkUrl) {
+      // Restore selection
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(savedSelection);
+        document.execCommand("createLink", false, linkUrl);
+      }
+    }
+    setShowLinkInput(false);
+    setLinkUrl("");
+    setSavedSelection(null);
   };
 
   // Removed local storage user loading
@@ -206,15 +226,16 @@ function EditorContent() {
       // Parse content into blocks
       if (article.content) {
         const contentBlocks: Block[] = [];
-        const imageRegex = /!\[(.*?)\]\((.+?)\)/g;
+        const combinedRegex = /(!\[.*?\]\(.+?\))|(<figure>[\s\S]*?<\/figure>)/g;
         let lastIndex = 0;
         let match;
 
-        while ((match = imageRegex.exec(article.content)) !== null) {
-          // Add text before image
+        while ((match = combinedRegex.exec(article.content)) !== null) {
+          // Add text before image/figure
           const textBefore = article.content
             .substring(lastIndex, match.index)
             .trim();
+
           if (textBefore) {
             contentBlocks.push({
               id: crypto.randomUUID(),
@@ -223,15 +244,34 @@ function EditorContent() {
             });
           }
 
-          // Add image block
-          contentBlocks.push({
-            id: crypto.randomUUID(),
-            type: "image",
-            content: match[2],
-            caption: match[1] === "Image" ? "" : match[1],
-          });
+          if (match[1]) {
+            // Markdown Image
+            const mdMatch = /!\[(.*?)\]\((.+?)\)/.exec(match[1]);
+            if (mdMatch) {
+              contentBlocks.push({
+                id: crypto.randomUUID(),
+                type: "image",
+                content: mdMatch[2],
+                caption: mdMatch[1] === "Image" ? "" : mdMatch[1],
+              });
+            }
+          } else if (match[2]) {
+            // HTML Figure
+            const srcMatch = /src="(.*?)"/.exec(match[2]);
+            const captionMatch = /<figcaption>(.*?)<\/figcaption>/.exec(
+              match[2],
+            );
+            if (srcMatch) {
+              contentBlocks.push({
+                id: crypto.randomUUID(),
+                type: "image",
+                content: srcMatch[1],
+                caption: captionMatch ? captionMatch[1] : "",
+              });
+            }
+          }
 
-          lastIndex = imageRegex.lastIndex;
+          lastIndex = combinedRegex.lastIndex;
         }
 
         // Add remaining text
@@ -332,7 +372,7 @@ function EditorContent() {
   const fullContent = blocks
     .map((b) =>
       b.type === "image"
-        ? `\n![${b.caption || "Image"}](${b.content})\n`
+        ? `\n<figure class="image-block"><img src="${b.content}" alt="Image" /><figcaption>${b.caption || ""}</figcaption></figure>\n`
         : b.content,
     )
     .join("\n");
@@ -741,6 +781,53 @@ function EditorContent() {
             </motion.div>
           </>
         )}
+
+        {/* Link Input Popover */}
+        {showLinkInput && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+              onClick={() => setShowLinkInput(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              className="fixed top-1/3 left-0 right-0 z-50 mx-auto max-w-sm rounded-2xl border border-border bg-card p-4 shadow-xl"
+            >
+              <h3 className="mb-3 text-sm font-bold flex items-center gap-2">
+                <Link className="h-4 w-4 text-primary" />
+                Insert Link
+              </h3>
+              <input
+                type="url"
+                placeholder="https://example.com"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleLinkSubmit();
+                }}
+                autoFocus
+                className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 mb-4"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowLinkInput(false)}
+                  className="px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLinkSubmit}
+                  disabled={!linkUrl}
+                  className="px-4 py-1.5 text-xs font-bold bg-primary text-primary-foreground rounded-full hover:bg-primary/90 disabled:opacity-50"
+                >
+                  Apply
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
       </AnimatePresence>
 
       <div className="relative min-h-[calc(100vh-12rem)]">
@@ -1080,7 +1167,7 @@ function EditorContent() {
                 {/* Cover Image Upload */}
                 <div className="relative">
                   {imageUrl ? (
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                       <div className="relative h-64 w-full overflow-hidden rounded-xl border border-border group/image">
                         <img
                           src={imageUrl}
@@ -1094,16 +1181,15 @@ function EditorContent() {
                           <X className="h-4 w-4" />
                         </button>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                          Image Description
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Describe this image for the home page..."
-                          value={imageDescription}
-                          onChange={(e) => setImageDescription(e.target.value)}
-                          className="w-full bg-secondary/30 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary/20 placeholder:text-muted-foreground/50 text-foreground"
+                      <div className="rounded-lg border border-border bg-secondary/30 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+                        <ContentBlock
+                          html={imageDescription}
+                          onChange={(html) => setImageDescription(html)}
+                          onFocus={(e: React.FocusEvent<HTMLDivElement>) => {
+                            activeTextAreaRef.current = e.currentTarget;
+                            updateActiveActions();
+                          }}
+                          className="w-full min-h-[10px] px-3 py-2 text-sm font-medium focus:outline-none text-foreground resize-none prose prose-sm dark:prose-invert max-w-none prose-p:m-0 prose-ul:m-0 prose-li:m-0 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-5 prose-ol:pl-5 empty:before:content-['Image_Description'] empty:before:text-muted-foreground/50"
                         />
                       </div>
                     </div>
@@ -1113,7 +1199,7 @@ function EditorContent() {
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 py-12 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
                     >
                       <ImagePlus className="h-4 w-4" />
-                      Add Cover Image (Required for News)
+                      Add Cover Image
                     </button>
                   )}
                   <input
@@ -1169,22 +1255,28 @@ function EditorContent() {
                             alt={block.caption || "Inserted"}
                             className="w-full rounded-lg object-cover max-h-125"
                           />
-                          <input
-                            type="text"
-                            placeholder="Type caption for image (optional)"
-                            value={block.caption || ""}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              setBlocks((prev) =>
-                                prev.map((b) =>
-                                  b.id === block.id
-                                    ? { ...b, caption: val }
-                                    : b,
-                                ),
-                              );
-                            }}
-                            className="mt-2 w-full text-center text-sm text-muted-foreground bg-transparent border-none focus:outline-none placeholder:text-muted-foreground/50"
-                          />
+                          <div className="mt-2 rounded-lg border border-border bg-secondary/30 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+                            <ContentBlock
+                              html={block.caption || ""}
+                              onChange={(html) => {
+                                setBlocks((prev) =>
+                                  prev.map((b) =>
+                                    b.id === block.id
+                                      ? { ...b, caption: html }
+                                      : b,
+                                  ),
+                                );
+                              }}
+                              onFocus={(
+                                e: React.FocusEvent<HTMLDivElement>,
+                              ) => {
+                                setActiveBlockId(block.id);
+                                activeTextAreaRef.current = e.currentTarget;
+                                updateActiveActions();
+                              }}
+                              className="w-full min-h-[10px] px-3 py-2 text-sm font-medium focus:outline-none text-foreground resize-none prose prose-sm dark:prose-invert max-w-none prose-p:m-0 prose-ul:m-0 prose-li:m-0 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-5 prose-ol:pl-5 empty:before:content-['Type_caption...'] empty:before:text-muted-foreground/50"
+                            />
+                          </div>
                           <button
                             onClick={() => {
                               setBlocks(
@@ -1227,7 +1319,7 @@ function EditorContent() {
                           setActiveBlockId(block.id);
                           activeTextAreaRef.current = e.currentTarget;
                         }}
-                        className="w-full bg-transparent text-base leading-relaxed placeholder:text-muted-foreground/30 focus:outline-none font-medium text-foreground outline-none empty:before:content-['Start_writing...'] empty:before:text-muted-foreground/20 prose prose-sm dark:prose-invert max-w-none prose-p:m-0 prose-headings:m-0 prose-h2:text-xl prose-h2:font-bold prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-blockquote:italic"
+                        className="w-full bg-transparent text-base leading-relaxed placeholder:text-muted-foreground/30 focus:outline-none font-medium text-foreground outline-none empty:before:content-['Start_writing...'] empty:before:text-muted-foreground/20 prose prose-sm dark:prose-invert max-w-none prose-p:m-0 prose-headings:m-0 prose-h2:text-xl prose-h2:font-bold prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-blockquote:italic prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-5 prose-ol:pl-5"
                       />
                     );
                   })}
