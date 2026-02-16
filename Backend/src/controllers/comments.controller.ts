@@ -63,8 +63,9 @@ export class CommentsController {
   }
 
   @Get('article/:articleId')
-  async findAll(@Param('articleId') articleId: string) {
-    return this.commentsService.findByArticle(articleId);
+  async findAll(@Param('articleId') articleId: string, @Req() req?: Request & { user?: { id: string } }) {
+    const userId = req?.user?.id;
+    return this.commentsService.findByArticle(articleId, userId);
   }
 
   @Delete(':id')

@@ -15,6 +15,7 @@ import { Request } from 'express';
 import { ArticlesService } from '../services/articles.service';
 import { CreateArticleDto } from '../modules/articles/dto/create-article.dto';
 import { Prisma } from '../generated/prisma/client';
+import { OptionalAuthGuard } from '../middlewares/guards/optional-auth.guard';
 
 @Controller('api/articles')
 export class ArticlesController {
@@ -37,20 +38,49 @@ export class ArticlesController {
   }
 
   @Get()
-  findAll(
+  @UseGuards(OptionalAuthGuard)
+  async findAll(
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('hasMedia') hasMedia?: string,
+    @Req() req?: Request & { user?: { id: string } },
   ) {
     const limitNum = limit ? parseInt(limit, 10) : 20;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
     const hasMediaBool = hasMedia === 'true';
-    return this.articlesService.findAll(limitNum, offsetNum, hasMediaBool);
+    const userId = req?.user?.id;
+    return this.articlesService.findAll(limitNum, offsetNum, hasMediaBool, userId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.articlesService.findOne(id);
+  @UseGuards(OptionalAuthGuard)
+  async findOne(@Param('id') id: string, @Req() req?: Request & { user?: { id: string } }) {
+    const userId = req?.user?.id;
+    return this.articlesService.findOne(id, userId);
+  }
+
+  @Get(':id/related')
+  @UseGuards(OptionalAuthGuard)
+  async findRelated(
+    @Param('id') id: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) : 4;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    return this.articlesService.findRelated(id, limitNum, offsetNum);
+  }
+
+  @Get('trending/all')
+  @UseGuards(OptionalAuthGuard)
+  async findTrending(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('excludeId') excludeId?: string,
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) : 4;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    return this.articlesService.findTrending(limitNum, offsetNum, excludeId);
   }
 
   @Put(':id')
@@ -64,8 +94,9 @@ export class ArticlesController {
   }
 
   @Post(':id/like')
-  async toggleLike(@Param('id') id: string) {
-    return await this.articlesService.toggleLike(id);
+  @UseGuards(AuthGuard('jwt'))
+  async toggleLike(@Param('id') id: string, @Req() req: any) {
+    return await this.articlesService.toggleLike(req.user.id, id);
   }
 
   @Post(':id/bookmark')

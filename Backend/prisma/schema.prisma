@@ -1,3 +1,4 @@
+
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -20,6 +21,7 @@ model User {
   refreshTokens RefreshToken[]
   comments      Comment[]
   commentLikes  CommentLike[]
+  articleLikes  ArticleLike[]
 }
 
 model RefreshToken {
@@ -45,7 +47,6 @@ model Article {
   category    String    @default("Technology")
   excerpt     String?
   location    String?
-  liked       Boolean   @default(false)
   likes       Int       @default(0)
   readTime    Int       @default(5)
   image       String?
@@ -68,10 +69,23 @@ model Article {
   scheduledAt DateTime?
   author      User      @relation(fields: [authorId], references: [id])
   comments    Comment[]
+  articleLikes ArticleLike[]
 
   @@index([authorId])
   @@index([category])
   @@index([createdAt])
+}
+
+model ArticleLike {
+  id        String   @id @default(uuid())
+  userId    String
+  articleId String
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
 }
 
 model Comment {

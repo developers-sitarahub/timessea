@@ -38,7 +38,7 @@ export class CommentsService {
    * Get all comments for an article (tree structure)
    * Returns top-level comments with nested replies
    */
-  async findByArticle(articleId: string) {
+  async findByArticle(articleId: string, userId?: string) {
     // Fetch all comments for the article
     const allComments = await this.prisma.comment.findMany({
       where: { articleId },
@@ -55,13 +55,27 @@ export class CommentsService {
       orderBy: { createdAt: 'asc' },
     });
 
+    // Fetch user likes if userId provided
+    const userLikes = userId
+      ? await this.prisma.commentLike.findMany({
+          where: {
+            userId,
+            commentId: { in: allComments.map((c) => c.id) },
+          },
+          select: { commentId: true },
+        })
+      : [];
+
+    const likedCommentIds = new Set(userLikes.map((l) => l.commentId));
+
     // Build tree structure
     const commentMap = new Map<string, any>();
     const rootComments: any[] = [];
 
     // First pass: create a map of all comments
     for (const comment of allComments) {
-      commentMap.set(comment.id, { ...comment, replies: [] });
+      const liked = likedCommentIds.has(comment.id);
+      commentMap.set(comment.id, { ...comment, replies: [], liked });
     }
 
     // Second pass: build tree
@@ -137,9 +151,8 @@ export class CommentsService {
   /**
    * Alias for findByArticle (for transition)
    */
-  async findAllByArticle(articleId: string, _userId?: string) {
-    // In the future, we can use _userId to mark which comments the user has liked
-    return this.findByArticle(articleId);
+  async findAllByArticle(articleId: string, userId?: string) {
+    return this.findByArticle(articleId, userId);
   }
 
   /**
