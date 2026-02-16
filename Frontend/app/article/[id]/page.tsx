@@ -271,6 +271,7 @@ export default function ArticlePage({
   const [trendingOffset, setTrendingOffset] = useState(0);
   const [hasMoreRelated, setHasMoreRelated] = useState(true);
   const [hasMoreTrending, setHasMoreTrending] = useState(true);
+  const [trendingVisibleCount, setTrendingVisibleCount] = useState(4);
 
   // Delayed read counting (1 minute threshold for "read")
   useEffect(() => {
@@ -338,7 +339,7 @@ export default function ArticlePage({
         setLoadingTrending(true);
         try {
             // Fetch initial Related (Limit 4)
-            const resRelated = await fetch(`${API_URL}/api/articles/${id}/related?limit=4&offset=0`);
+            const resRelated = await fetch(`${API_URL}/api/articles/${id}/related?limit=4&offset=0&t=${Date.now()}`);
             if (resRelated.ok) {
                 const data = await resRelated.json();
                 setRelatedArticles(data);
@@ -348,12 +349,13 @@ export default function ArticlePage({
 
             // Fetch initial Trending (Limit 4)
             // Note: pass excludeId={id} to filter current viewing article from trending list
-            const resTrending = await fetch(`${API_URL}/api/articles/trending/all?limit=4&offset=0&excludeId=${id}`);
+            // Fetch 10 initially to have a buffer after filtering related ones
+            const resTrending = await fetch(`${API_URL}/api/articles/trending/all?limit=10&offset=0&excludeId=${id}`);
              if (resTrending.ok) {
                 const data = await resTrending.json();
                 setTrendingArticles(data);
-                if (data.length < 4) setHasMoreTrending(false);
-                setTrendingOffset(4);
+                if (data.length < 10) setHasMoreTrending(false);
+                setTrendingOffset(10);
             }
         } catch (err) {
             console.error(err);
@@ -385,6 +387,16 @@ export default function ArticlePage({
   };
 
   const loadMoreTrending = async () => {
+    const filteredTrending = trendingArticles.filter(t => !relatedArticles.some(r => r.id === t.id));
+    
+    // If we have more articles already fetched but not shown, show them first
+    if (trendingVisibleCount < filteredTrending.length) {
+        setTrendingVisibleCount(prev => prev + 4);
+        return;
+    }
+
+    if (!hasMoreTrending) return;
+
       try {
           const res = await fetch(`${API_URL}/api/articles/trending/all?limit=4&offset=${trendingOffset}&excludeId=${id}`);
           if (res.ok) {
@@ -392,6 +404,7 @@ export default function ArticlePage({
                if (data.length > 0) {
                   setTrendingArticles(prev => [...prev, ...data]);
                   setTrendingOffset(prev => prev + 4);
+                  setTrendingVisibleCount(prev => prev + 4);
                   if (data.length < 4) setHasMoreTrending(false);
               } else {
                   setHasMoreTrending(false);
@@ -1272,33 +1285,35 @@ export default function ArticlePage({
                     )}
 
                     {/* TRENDING SECTION */}
-                    {trendingArticles.length > 0 && (
-                        <div className="pt-8 border-t border-border/40">
-                            <h4 className="text-[18px] font-black tracking-tight text-foreground mb-8 flex items-center gap-2 font-serif">
-                                <span className="w-1.5 h-6 bg-primary rounded-full" />
-                                Trending News
-                            </h4>
-                            <div className="flex flex-col gap-4">
-                                {trendingArticles
-                                    .filter(t => !relatedArticles.some(r => r.id === t.id))
-                                    .map((article) => (
-                                    <div key={article.id} className="bg-card/30 rounded-2xl p-2 hover:bg-secondary/20 transition-colors">
-                                         <ArticleCardHorizontal article={article} />
-                                    </div>
-                                ))}
-                            </div>
-                            {hasMoreTrending && (
-                                <div className="text-center pt-8">
-                                    <button 
-                                        onClick={loadMoreTrending}
-                                        className="px-6 py-2.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-sm font-bold transition-all"
-                                    >
-                                        Load More Trending News
-                                    </button>
+                    {(() => {
+                        const filteredTrending = trendingArticles.filter(t => !relatedArticles.some(r => r.id === t.id));
+                        if (filteredTrending.length === 0) return null;
+                        return (
+                            <div className="pt-8 border-t border-border/40">
+                                <h4 className="text-[18px] font-black tracking-tight text-foreground mb-8 flex items-center gap-2 font-serif">
+                                    <span className="w-1.5 h-6 bg-primary rounded-full" />
+                                    Trending News
+                                </h4>
+                                <div className="flex flex-col gap-4">
+                                    {filteredTrending.slice(0, trendingVisibleCount).map((article) => (
+                                        <div key={article.id} className="bg-card/30 rounded-2xl p-2 hover:bg-secondary/20 transition-colors">
+                                             <ArticleCardHorizontal article={article} />
+                                        </div>
+                                    ))}
                                 </div>
-                            )}
-                        </div>
-                    )}
+                                {(hasMoreTrending || filteredTrending.length > trendingVisibleCount) && trendingVisibleCount >= 4 && (
+                                    <div className="text-center pt-8">
+                                        <button 
+                                            onClick={loadMoreTrending}
+                                            className="px-6 py-2.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-sm font-bold transition-all shadow-sm"
+                                        >
+                                            Load More Trending News
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })()}
                 </div>
             )}
           </div>

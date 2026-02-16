@@ -12,9 +12,9 @@ import { formatDistanceToNow } from "date-fns";
 const stripImageMarkdown = (text: string) => {
   // Handle various markdown image formats and raw data URIs
   return text
-    .replace(/!\[.*?\]\s*\(.*?\)/gs, "") // Standard markdown (dotAll)
+    .replace(/!\[.*?\]\s*\(.*?\)/g, "") // Standard markdown (removed dotAll s flag)
     .replace(/!?\[Image\]/g, "")         // Legacy markers [Image] or ![Image]
-    .replace(/\(data:.*?(\)|$)/gs, "")   // Any data URI (images or other)
+    .replace(/\(data:.*?(\)|$)/g, "")   // Any data URI (removed dotAll s flag)
     .trim();
 };
 
@@ -83,7 +83,7 @@ export function ArticleCardFeatured({ article }: { article: Article }) {
               />
             ) : (
               <span>
-                {article.author.avatar || article.author.name.charAt(0)}
+                {article.author.name.charAt(0)}
               </span>
             )}
           </div>
@@ -194,7 +194,7 @@ export function ArticleCardHorizontal({ article }: { article: Article }) {
                 />
               ) : (
                 <span>
-                  {article.author.avatar || article.author.name.charAt(0)}
+                  {article.author.name.charAt(0)}
                 </span>
               )}
             </div>
@@ -264,7 +264,7 @@ export function ArticleCardVertical({ article }: { article: Article }) {
       className="group flex flex-col h-full rounded-2xl border border-border/40 bg-card overflow-hidden hover:shadow-lg hover:border-border/80 transition-all duration-300"
       onClick={() => trackArticleClick(article.id)}
     >
-      <div className="aspect-[16/9] w-full bg-secondary relative overflow-hidden">
+      <div className="aspect-video w-full bg-secondary relative overflow-hidden">
         {article.image ? (
           <Image
             src={article.image}
@@ -290,7 +290,7 @@ export function ArticleCardVertical({ article }: { article: Article }) {
       <div className="flex flex-1 flex-col p-4">
         {/* Author & Date */}
         <div className="mb-2 flex items-center gap-2">
-           <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-[9px] font-bold text-muted-foreground overflow-hidden relative border border-border/50">
+           <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-[9px] font-bold text-muted-foreground overflow-hidden relative border border-border/50 shrink-0">
               {article.author.picture ? (
                 <Image
                   src={article.author.picture}
@@ -300,7 +300,7 @@ export function ArticleCardVertical({ article }: { article: Article }) {
                 />
               ) : (
                 <span className="flex h-full w-full items-center justify-center bg-muted">
-                  {article.author.avatar || article.author.name.charAt(0)}
+                  {article.author.name.charAt(0)}
                 </span>
               )}
             </div>
@@ -327,15 +327,12 @@ export function ArticleCardVertical({ article }: { article: Article }) {
 
         {/* Footer Metadata */}
         <div className="mt-auto flex items-center justify-between border-t border-border/40 pt-2">
-           <div className="flex items-center gap-2 overflow-hidden">
-               {article.location && (
-                  <span className="text-[10px] font-medium text-muted-foreground truncate max-w-[120px] flex items-center gap-0.5">
-                    📍 {article.location}
-                  </span>
-                )}
-           </div>
-           
-           <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded-md shrink-0">
+           {article.location && (
+             <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-0.5 truncate max-w-32">
+               📍 {article.location}
+             </span>
+           )}
+           <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded-md shrink-0 ml-auto">
              <Heart className={cn("w-3 h-3", article.liked && "fill-red-500 text-red-500")} />
              <span>{article.likes}</span>
            </div>

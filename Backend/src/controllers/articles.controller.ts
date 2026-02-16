@@ -78,6 +78,7 @@ export class ArticlesController {
       const token = authHeader.split(' ')[1];
       try {
         const decoded = this.jwtService.verify<JwtPayload>(token);
+        userId = decoded.sub;
       } catch (e: any) {
         // Ignore invalid token, treat as anonymous
       }
@@ -103,10 +104,12 @@ export class ArticlesController {
     @Param('id') id: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Req() req?: Request,
   ) {
     const limitNum = limit ? parseInt(limit, 10) : 4;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
-    return this.articlesService.findRelated(id, limitNum, offsetNum);
+    const userId = this.getUserIdFromRequest(req);
+    return this.articlesService.findRelated(id, limitNum, offsetNum, userId);
   }
 
   @Get('trending/all')
@@ -115,10 +118,12 @@ export class ArticlesController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('excludeId') excludeId?: string,
+    @Req() req?: Request,
   ) {
     const limitNum = limit ? parseInt(limit, 10) : 4;
     const offsetNum = offset ? parseInt(offset, 10) : 0;
-    return this.articlesService.findTrending(limitNum, offsetNum, excludeId);
+    const userId = this.getUserIdFromRequest(req);
+    return this.articlesService.findTrending(limitNum, offsetNum, excludeId, userId);
   }
 
   @Put(':id')
@@ -161,5 +166,10 @@ export class ArticlesController {
   ) {
     const readerId = req.user?.id || req.ip || 'anonymous';
     return await this.articlesService.incrementReads(id, readerId);
+  }
+
+  @Post('sync-counts')
+  async syncCounts() {
+    return this.articlesService.backfillCommentCounts();
   }
 }

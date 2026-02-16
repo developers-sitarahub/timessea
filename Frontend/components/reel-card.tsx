@@ -62,7 +62,7 @@ export function ReelCard({
 
   useEffect(() => {
     // Fetch comment count
-    fetch(`http://localhost:5000/api/comments/article/${article.id}/count`)
+    fetch(`http://127.0.0.1:5000/api/comments/article/${article.id}/count`)
       .then((res) => res.json())
       .then((data) => setCommentCount(data.count))
       .catch((err) => console.error("Failed to fetch comment count", err));
