@@ -48,11 +48,13 @@ model Article {
   excerpt     String?
   location    String?
   likes       Int       @default(0)
+  commentCount Int      @default(0)
   readTime    Int       @default(5)
   image       String?
   views       Int       @default(0)
   reads       Int       @default(0)
   media       Json?
+  deletedAt   DateTime?
 
   // Article metadata fields
   subheadline    String?
@@ -69,11 +71,12 @@ model Article {
   scheduledAt DateTime?
   author      User      @relation(fields: [authorId], references: [id])
   comments    Comment[]
-  articleLikes ArticleLike[]
+  likedBy     ArticleLike[]
 
   @@index([authorId])
   @@index([category])
   @@index([createdAt])
+  @@index([likes])
 }
 
 model ArticleLike {
@@ -81,11 +84,12 @@ model ArticleLike {
   userId    String
   articleId String
   createdAt DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, articleId])
+  @@index([articleId])
 }
 
 model Comment {
@@ -97,6 +101,8 @@ model Comment {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   likes     Int       @default(0)
+  edited    Boolean   @default(false)
+  deletedAt DateTime?
 
   article   Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
@@ -108,6 +114,7 @@ model Comment {
   @@index([parentId])
   @@index([authorId])
   @@index([createdAt])
+  @@index([likes])
 }
 
 model CommentLike {

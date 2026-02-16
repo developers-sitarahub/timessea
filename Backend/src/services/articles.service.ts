@@ -109,7 +109,7 @@ export class ArticlesService {
     offset = 0,
     hasMedia = false,
     userId?: string,
-  ): Promise<(Article & { liked: boolean })[]> {
+  ): Promise<any[]> {
     const start = Date.now();
     const where: Prisma.ArticleWhereInput = {
       published: true,
@@ -133,21 +133,24 @@ export class ArticlesService {
             picture: true,
           },
         },
-        articleLikes: userId
+        likedBy: userId
           ? {
               where: { userId },
-              select: { userId: true },
+              select: { id: true },
             }
-          : false,
+          : undefined,
       },
       orderBy: { createdAt: 'desc' },
     });
     console.log(`findAll took ${Date.now() - start}ms for ${limit} items`);
 
-    return articles.map((article: any) => ({
-      ...article,
-      liked: userId ? article.articleLikes?.length > 0 : false,
-    }));
+    return articles.map((article) => {
+      const { likedBy, ...rest } = article as any;
+      return {
+        ...rest,
+        liked: likedBy?.length > 0,
+      };
+    });
   }
 
   async findScheduled(): Promise<Article[]> {
@@ -423,7 +426,7 @@ export class ArticlesService {
     return this.prisma.article.delete({ where: { id } });
   }
 
-  async toggleLike(userId: string, id: string): Promise<Article & { liked: boolean }> {
+  async toggleLike(id: string, userId: string): Promise<Article> {
     const article = await this.prisma.article.findUnique({ where: { id } });
     if (!article) {
       throw new Error('Article not found');
@@ -438,79 +441,46 @@ export class ArticlesService {
       },
     });
 
-    let updatedArticle;
-    let isLiked = false;
-
     if (existingLike) {
       // Unlike
-      await this.prisma.articleLike.delete({
-        where: { id: existingLike.id },
-      });
-      updatedArticle = await this.prisma.article.update({
-        where: { id },
-        data: {
-          likes: { decrement: 1 },
-        },
-        include: { author: true },
-      });
-      isLiked = false;
-
-      this.analyticsService
-        .track({
-          event: AnalyticsEventType.UNLIKE,
-          post_id: id,
-          user_id: userId,
-          metadata: {
-            source: 'app',
+      await this.prisma.$transaction([
+        this.prisma.articleLike.delete({
+          where: {
+            userId_articleId: {
+              userId,
+              articleId: id,
+            },
           },
-        })
-        .catch((err) => console.error('Failed to track unlike:', err));
+        }),
+        this.prisma.article.update({
+          where: { id },
+          data: {
+            likes: { decrement: 1 },
+          },
+        }),
+      ]);
     } else {
       // Like
-      try {
-        await this.prisma.articleLike.create({
+      await this.prisma.$transaction([
+        this.prisma.articleLike.create({
           data: {
             userId,
             articleId: id,
           },
-        });
-        updatedArticle = await this.prisma.article.update({
+        }),
+        this.prisma.article.update({
           where: { id },
           data: {
             likes: { increment: 1 },
           },
-          include: { author: true },
-        });
-        isLiked = true;
-
-        this.analyticsService
-          .track({
-            event: AnalyticsEventType.LIKE,
-            post_id: id,
-            user_id: userId,
-            metadata: {
-              source: 'app',
-            },
-          })
-          .catch((err) => console.error('Failed to track like:', err));
-      } catch (error) {
-        if (error.code === 'P2002') {
-          // Already liked by concurrent request, fetch current state
-          updatedArticle = await this.prisma.article.findUnique({
-            where: { id },
-             include: { author: true },
-          });
-          isLiked = true;
-        } else {
-          throw error;
-        }
-      }
+        }),
+      ]);
     }
 
-    return {
-      ...updatedArticle,
-      liked: isLiked,
-    };
+    return this.prisma.article.findUnique({
+      where: { id },
+      include: { author: true },
+    }) as Promise<Article>;
   }
 
   async toggleBookmark(id: string): Promise<Article> {
@@ -527,8 +497,6 @@ export class ArticlesService {
       include: { author: true },
     });
   }
-
-
 
   async incrementViews(id: string, userId: string): Promise<Article> {
     const viewKey = `viewed:${id}:${userId}`;

@@ -7,7 +7,7 @@ import {
   ArticleCardFeatured,
   ArticleCardHorizontal,
 } from "@/components/article-card";
-import { Search, Bell, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Bell, ChevronLeft, ChevronRight, User } from "lucide-react";
 import { Article, categories } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
@@ -67,7 +67,7 @@ export default function HomePage() {
       <header className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-black text-foreground font-serif tracking-tight">
-            Hello {user?.name?.split(' ')[0] || "Reader"}
+            Hello {user?.name?.split(" ")[0] || "Reader"}
           </h1>
           <p className="text-sm font-medium text-muted-foreground mt-1">
             Discover today's top stories
@@ -84,11 +84,21 @@ export default function HomePage() {
           </button>
           <Link href={user ? "/profile" : "/login"} className="relative group">
             <div className="h-10 w-10 overflow-hidden rounded-full ring-2 ring-background shadow-md transition-transform group-hover:scale-105">
-              {user?.picture ? (
-                <img src={user.picture} alt={user.name} className="h-full w-full object-cover" />
+              {user ? (
+                user.picture ? (
+                  <img
+                    src={user.picture}
+                    alt={user.name}
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  <div className="h-full w-full bg-foreground text-background flex items-center justify-center text-xs font-bold">
+                    {user.name?.charAt(0)}
+                  </div>
+                )
               ) : (
-                <div className="h-full w-full bg-foreground text-background flex items-center justify-center text-xs font-bold">
-                  {user?.name?.charAt(0) || "G"}
+                <div className="h-full w-full bg-secondary flex items-center justify-center text-foreground">
+                  <User className="h-5 w-5" />
                 </div>
               )}
             </div>

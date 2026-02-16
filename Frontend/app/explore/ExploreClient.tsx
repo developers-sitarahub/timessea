@@ -6,6 +6,7 @@ import { io } from "socket.io-client";
 import { ReelCard } from "@/components/reel-card";
 import { ReelSkeleton } from "@/components/reel-skeleton";
 import type { Article } from "@/lib/data";
+import { useAuth } from "@/contexts/AuthContext";
 
 // Map specific local paths to Unsplash images
 const imageMap: Record<string, string> = {
@@ -43,6 +44,7 @@ interface ExploreClientProps {
 export function ExploreClient({ initialArticles }: ExploreClientProps) {
   /* eslint-disable react-hooks/exhaustive-deps */
   const [articles, setArticles] = useState<Article[]>(initialArticles);
+  const { token } = useAuth();
   // isLoading is false initially as we have data
   const [isLoading, setIsLoading] = useState(false);
   // start offset at 5 since we already have 5 items
@@ -51,34 +53,43 @@ export function ExploreClient({ initialArticles }: ExploreClientProps) {
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const observerTarget = useRef<HTMLDivElement>(null);
 
-  const fetchArticles = useCallback(async (currentOffset: number) => {
-    try {
-      const limit = 10;
-      const response = await fetch(
-        `http://127.0.0.1:5000/api/articles?limit=${limit}&offset=${currentOffset}&hasMedia=true`,
-      );
-      if (!response.ok) throw new Error("Failed to fetch articles");
-      const data = await response.json();
+  const fetchArticles = useCallback(
+    async (currentOffset: number) => {
+      try {
+        const limit = 10;
+        const headers: HeadersInit = {};
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
 
-      if (data.length < limit) {
-        setHasMore(false);
-      }
-
-      setArticles((prev) => {
-        // Filter out duplicates based on ID
-        const newArticles = data.filter(
-          (newArt: Article) =>
-            !prev.some((prevArt) => prevArt.id === newArt.id),
+        const response = await fetch(
+          `http://127.0.0.1:5000/api/articles?limit=${limit}&offset=${currentOffset}&hasMedia=true`,
+          { headers },
         );
-        return [...prev, ...newArticles];
-      });
-    } catch (error) {
-      console.error("Error fetching articles:", error);
-    } finally {
-      setIsLoading(false);
-      setIsFetchingMore(false);
-    }
-  }, []);
+        if (!response.ok) throw new Error("Failed to fetch articles");
+        const data = await response.json();
+
+        if (data.length < limit) {
+          setHasMore(false);
+        }
+
+        setArticles((prev) => {
+          // Filter out duplicates based on ID
+          const newArticles = data.filter(
+            (newArt: Article) =>
+              !prev.some((prevArt) => prevArt.id === newArt.id),
+          );
+          return [...prev, ...newArticles];
+        });
+      } catch (error) {
+        console.error("Error fetching articles:", error);
+      } finally {
+        setIsLoading(false);
+        setIsFetchingMore(false);
+      }
+    },
+    [token],
+  );
 
   // Removed initial useEffect fetchArticles(0)
 
@@ -139,44 +150,54 @@ export function ExploreClient({ initialArticles }: ExploreClientProps) {
     };
   }, []);
 
-  const toggleLike = useCallback(async (id: string) => {
-    // Optimistic update
-    setArticles((prev) =>
-      prev.map((article) =>
-        article.id === id
-          ? {
-              ...article,
-              liked: !article.liked,
-              likes: article.liked ? article.likes - 1 : article.likes + 1,
-            }
-          : article,
-      ),
-    );
-
-    try {
-      const response = await fetch(
-        `http://127.0.0.1:5000/api/articles/${id}/like`,
-        { method: "POST" },
+  const toggleLike = useCallback(
+    async (id: string) => {
+      // Optimistic update
+      setArticles((prev) =>
+        prev.map((article) =>
+          article.id === id
+            ? {
+                ...article,
+                liked: !article.liked,
+                likes: article.liked ? article.likes - 1 : article.likes + 1,
+              }
+            : article,
+        ),
       );
-      if (!response.ok) {
-        // Revert if failed
-        setArticles((prev) =>
-          prev.map((article) =>
-            article.id === id
-              ? {
-                  ...article,
-                  liked: !article.liked,
-                  likes: article.liked ? article.likes - 1 : article.likes + 1,
-                }
-              : article,
-          ),
+
+      try {
+        const response = await fetch(
+          `http://127.0.0.1:5000/api/articles/${id}/like`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
         );
-        throw new Error("Failed to like article");
+        if (!response.ok) {
+          // Revert if failed
+          setArticles((prev) =>
+            prev.map((article) =>
+              article.id === id
+                ? {
+                    ...article,
+                    liked: !article.liked,
+                    likes: article.liked
+                      ? article.likes - 1
+                      : article.likes + 1,
+                  }
+                : article,
+            ),
+          );
+          throw new Error("Failed to like article");
+        }
+      } catch (error) {
+        console.error("Error liking article:", error);
       }
-    } catch (error) {
-      console.error("Error liking article:", error);
-    }
-  }, []);
+    },
+    [token],
+  );
 
   const toggleSave = useCallback(async (id: string) => {
     // Optimistic update

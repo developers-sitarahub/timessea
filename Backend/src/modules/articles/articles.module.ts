@@ -8,9 +8,10 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { UsersModule } from '../users/users.module';
 
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { AuthModule } from '../auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, UsersModule, AnalyticsModule],
+  imports: [PrismaModule, UsersModule, AnalyticsModule, AuthModule],
   controllers: [ArticlesController, CommentsController],
   providers: [ArticlesService, CommentsService, ArticlesGateway],
   exports: [ArticlesGateway, CommentsService],

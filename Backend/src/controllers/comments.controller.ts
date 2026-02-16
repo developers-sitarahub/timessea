@@ -15,6 +15,7 @@ import { Request } from 'express';
 import { CommentsService } from '../services/comments.service';
 import { Comment } from '../generated/prisma/client';
 import { CreateCommentDto } from '../modules/comments/dto/create-comment.dto';
+import { JwtService } from '@nestjs/jwt';
 
 interface RequestWithUser extends Request {
   user: {
@@ -27,7 +28,10 @@ interface RequestWithUser extends Request {
 
 @Controller('api/comments')
 export class CommentsController {
-  constructor(private readonly commentsService: CommentsService) {}
+  constructor(
+    private readonly commentsService: CommentsService,
+    private readonly jwtService: JwtService,
+  ) {}
 
   @Post()
   @UseGuards(AuthGuard('jwt'))
@@ -63,8 +67,18 @@ export class CommentsController {
   }
 
   @Get('article/:articleId')
-  async findAll(@Param('articleId') articleId: string, @Req() req?: Request & { user?: { id: string } }) {
-    const userId = req?.user?.id;
+  async findAll(@Param('articleId') articleId: string, @Req() req: Request) {
+    let userId: string | undefined;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = this.jwtService.verify(token);
+        userId = decoded.sub;
+      } catch {
+        // Ignore invalid token
+      }
+    }
     return this.commentsService.findByArticle(articleId, userId);
   }
 

@@ -8,29 +8,43 @@ export class CommentsService {
   /**
    * Create a new comment (top-level or reply)
    */
+  /**
+   * Create a new comment (top-level or reply)
+   */
   async create(data: {
     content: string;
     articleId: string;
     authorId: string;
     parentId?: string;
   }) {
-    return this.prisma.comment.create({
-      data: {
-        content: data.content,
-        article: { connect: { id: data.articleId } },
-        author: { connect: { id: data.authorId } },
-        parent: data.parentId ? { connect: { id: data.parentId } } : undefined,
-      },
-      include: {
-        author: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            picture: true,
+    return this.prisma.$transaction(async (tx) => {
+      const comment = await tx.comment.create({
+        data: {
+          content: data.content,
+          article: { connect: { id: data.articleId } },
+          author: { connect: { id: data.authorId } },
+          parent: data.parentId
+            ? { connect: { id: data.parentId } }
+            : undefined,
+        },
+        include: {
+          author: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              picture: true,
+            },
           },
         },
-      },
+      });
+
+      await tx.article.update({
+        where: { id: data.articleId },
+        data: { commentCount: { increment: 1 } },
+      });
+
+      return comment;
     });
   }
 
@@ -41,7 +55,7 @@ export class CommentsService {
   async findByArticle(articleId: string, userId?: string) {
     // Fetch all comments for the article
     const allComments = await this.prisma.comment.findMany({
-      where: { articleId },
+      where: { articleId }, // Fetch even deleted ones to maintain tree, frontend checks deletedAt
       include: {
         author: {
           select: {
@@ -51,6 +65,12 @@ export class CommentsService {
             picture: true,
           },
         },
+        commentLikes: userId
+          ? {
+              where: { userId },
+              select: { userId: true },
+            }
+          : undefined,
       },
       orderBy: { createdAt: 'asc' },
     });
@@ -74,8 +94,16 @@ export class CommentsService {
 
     // First pass: create a map of all comments
     for (const comment of allComments) {
-      const liked = likedCommentIds.has(comment.id);
-      commentMap.set(comment.id, { ...comment, replies: [], liked });
+      const { commentLikes, ...rest } = comment as any;
+      const likedByMe = commentLikes?.length > 0;
+
+      commentMap.set(comment.id, {
+        ...rest,
+        // Map backend 'likes' to frontend 'likeCount'
+        likeCount: rest.likes,
+        likedByMe,
+        replies: [],
+      });
     }
 
     // Second pass: build tree
@@ -95,9 +123,11 @@ export class CommentsService {
    * Get comment count for an article
    */
   async getCount(articleId: string): Promise<number> {
-    return this.prisma.comment.count({
-      where: { articleId },
+    const article = await this.prisma.article.findUnique({
+      where: { id: articleId },
+      select: { commentCount: true },
     });
+    return article?.commentCount || 0;
   }
 
   /**
@@ -151,12 +181,13 @@ export class CommentsService {
   /**
    * Alias for findByArticle (for transition)
    */
-  async findAllByArticle(articleId: string, userId?: string) {
-    return this.findByArticle(articleId, userId);
+  async findAllByArticle(articleId: string) {
+    // In the future, we can use userId to mark which comments the user has liked
+    return this.findByArticle(articleId);
   }
 
   /**
-   * Delete a comment (and cascading replies)
+   * Delete a comment (soft delete)
    */
   async delete(commentId: string, userId: string) {
     // Only author can delete
@@ -172,8 +203,20 @@ export class CommentsService {
       throw new Error('Not authorized to delete this comment');
     }
 
-    return this.prisma.comment.delete({
-      where: { id: commentId },
+    return this.prisma.$transaction(async (tx) => {
+      // Soft delete
+      const deletedComment = await tx.comment.update({
+        where: { id: commentId },
+        data: { deletedAt: new Date() },
+      });
+
+      // Decrement article comment count
+      await tx.article.update({
+        where: { id: comment.articleId },
+        data: { commentCount: { decrement: 1 } },
+      });
+
+      return deletedComment;
     });
   }
 }
