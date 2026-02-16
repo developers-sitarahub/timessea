@@ -199,7 +199,9 @@ export class AnalyticsQueryService {
         SELECT
           toDate(created_at) as date,
           countIf(event = 'post_view') as views,
-          countIf(event = 'post_read') as reads
+          countIf(event = 'post_read') as reads,
+          countIf(event = 'like') as likes,
+          countIf(event = 'comment') as comments
         FROM analytics.events
         WHERE post_id IN ({postIds:Array(String)})
           AND created_at >= today() - 7
@@ -271,6 +273,8 @@ export class AnalyticsQueryService {
       fullDate: string;
       views: number;
       reads: number;
+      likes: number;
+      comments: number;
     }[] = [];
     const today = new Date();
     for (let i = 6; i >= 0; i--) {
@@ -284,6 +288,8 @@ export class AnalyticsQueryService {
         fullDate: dateStr,
         views: Number(data?.views || 0),
         reads: Number(data?.reads || 0),
+        likes: Number(data?.likes || 0),
+        comments: Number(data?.comments || 0),
       });
     }
 
@@ -301,6 +307,8 @@ export class AnalyticsQueryService {
       formattedTrend.forEach((day, index) => {
         day.views = Math.ceil(totalViews * weights[index]);
         day.reads = Math.ceil(totalReads * weights[index]);
+        day.likes = Math.ceil(totalLikes * weights[index]);
+        day.comments = Math.ceil(prismaCommentCount * weights[index]);
       });
     }
 
@@ -330,47 +338,67 @@ export class AnalyticsQueryService {
    * Get post-level analytics
    */
   async getPostAnalytics(postId: string): Promise<PostAnalytics> {
+    // 1. Get real-time stats from Prisma (reliable source for counts)
+    const [article, commentCount] = await Promise.all([
+      this.prismaService.article.findUnique({
+        where: { id: postId },
+        select: { likes: true, views: true, reads: true },
+      }),
+      this.prismaService.comment.count({
+        where: { articleId: postId },
+      }),
+    ]);
+
+    // 2. Query ClickHouse for unique views and shares (events only)
     const query = `
       SELECT
-        countIf(event = 'post_view') AS views,
         uniqIf(user_id, event = 'post_view') AS unique_views,
-        countIf(event = 'post_read') AS reads,
-        countIf(event = 'like') AS likes,
-        countIf(event = 'comment') AS comments,
         countIf(event = 'share') AS shares
       FROM analytics.events
       WHERE post_id = {postId:UUID}
     `;
 
-    const results = await this.clickhouseService.query<PostAnalyticsResult>(
-      query,
-      {
+    let chData = { unique_views: 0, shares: 0 };
+    try {
+      const results = await this.clickhouseService.query<any>(query, {
         postId,
-      },
-    );
+      });
+      chData = results[0] || { unique_views: 0, shares: 0 };
+    } catch (err) {
+      console.error('Failed to query ClickHouse for post analytics:', err);
+    }
 
-    const data = results[0] || {
-      views: 0,
-      unique_views: 0,
-      reads: 0,
-      likes: 0,
-      comments: 0,
-      shares: 0,
-    };
+    if (!article) {
+      return {
+        post_id: postId,
+        views: 0,
+        unique_views: 0,
+        reads: 0,
+        likes: 0,
+        comments: 0,
+        shares: 0,
+        engagement_rate: 0,
+      };
+    }
+
+    const views = article.views;
+    const likes = article.likes;
+    const comments = commentCount;
+    const reads = article.reads;
+    const shares = Number(chData.shares) || 0;
+    const unique_views = Number(chData.unique_views) || 0;
 
     const engagement_rate =
-      data.views > 0
-        ? ((data.likes + data.comments + data.shares) / data.views) * 100
-        : 0;
+      views > 0 ? ((likes + comments + shares) / views) * 100 : 0;
 
     return {
       post_id: postId,
-      views: Number(data.views) || 0,
-      unique_views: Number(data.unique_views) || 0,
-      reads: Number(data.reads) || 0,
-      likes: Number(data.likes) || 0,
-      comments: Number(data.comments) || 0,
-      shares: Number(data.shares) || 0,
+      views,
+      unique_views,
+      reads,
+      likes,
+      comments,
+      shares,
       engagement_rate: Math.round(engagement_rate * 100) / 100,
     };
   }

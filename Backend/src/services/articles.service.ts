@@ -10,6 +10,8 @@ import { AnalyticsService } from './analytics.service';
 import { AnalyticsEventType } from '../modules/analytics/analytics.interface';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
+import { AnalyticsQueryService } from '../services/analytics-query.service';
+
 interface ArticleWithRelations extends Article {
   author: {
     id: string;
@@ -28,6 +30,7 @@ export class ArticlesService {
     private articlesGateway: ArticlesGateway,
     private redisService: RedisService,
     private analyticsService: AnalyticsService,
+    private analyticsQueryService: AnalyticsQueryService,
   ) {}
 
   @Cron(CronExpression.EVERY_30_SECONDS)
@@ -117,7 +120,6 @@ export class ArticlesService {
     hasMedia = false,
     userId?: string,
   ): Promise<any[]> {
-    const start = Date.now();
     const where: Prisma.ArticleWhereInput = {
       published: true,
     };
@@ -151,8 +153,8 @@ export class ArticlesService {
     });
     console.log(`findAll found ${articles.length} articles`);
     if (articles.length > 0 && userId) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      console.log('First article likedBy:', (articles[0] as any).likedBy);
+      const typedFirstArticle = articles[0] as unknown as ArticleWithRelations;
+      console.log('First article likedBy:', typedFirstArticle.likedBy);
     }
 
     const typedArticles = articles as unknown as ArticleWithRelations[];
@@ -214,8 +216,11 @@ export class ArticlesService {
     });
   }
 
-  findOne(id: string): Promise<Article | null> {
-    return this.prisma.article.findUnique({
+  async findOne(
+    id: string,
+    userId?: string,
+  ): Promise<(Article & { liked: boolean }) | null> {
+    const article = await this.prisma.article.findUnique({
       where: { id },
       include: {
         author: {
@@ -226,8 +231,295 @@ export class ArticlesService {
             picture: true,
           },
         },
+        likedBy: userId
+          ? {
+              where: { userId },
+              select: { userId: true },
+            }
+          : false,
       },
     });
+
+    if (!article) return null;
+
+    const typedArticle = article as unknown as ArticleWithRelations;
+    return {
+      ...article,
+      liked: userId ? (typedArticle.likedBy?.length ?? 0) > 0 : false,
+    };
+  }
+
+  async findRelated(
+    id: string,
+    limit = 4,
+    offset = 0,
+    userId?: string,
+  ): Promise<Article[]> {
+    const article = await this.prisma.article.findUnique({
+      where: { id },
+      select: { location: true, category: true },
+    });
+
+    if (!article) return [];
+
+    const loc = article.location?.trim() || null;
+    const cat = article.category;
+    const results: ArticleWithRelations[] = [];
+    const collectedIds = new Set<string>([id]); // Always exclude the current article
+
+    const authorInclude = {
+      author: { select: { id: true, name: true, email: true, picture: true } },
+      likedBy: userId
+        ? {
+            where: { userId },
+            select: { id: true },
+          }
+        : undefined,
+    };
+
+    // Helper: case-insensitive location match
+    const locEquals = loc
+      ? { equals: loc, mode: 'insensitive' as const }
+      : undefined;
+    const locNotEquals = loc
+      ? { not: loc, mode: 'insensitive' as const }
+      : undefined;
+
+    console.log(
+      `[findRelated] Article ${id} | loc="${loc}" | cat="${cat}" | limit=${limit} | offset=${offset} | userId=${userId}`,
+    );
+
+    // --- Tier 1: Same Location + Same Category (Highest Priority) ---
+    let count1 = 0;
+    if (loc) {
+      count1 = await this.prisma.article.count({
+        where: {
+          location: locEquals,
+          category: cat,
+          id: { not: id },
+          published: true,
+        },
+      });
+
+      if (offset < count1) {
+        const take = Math.min(limit, count1 - offset);
+        const res = (await this.prisma.article.findMany({
+          where: {
+            location: locEquals,
+            category: cat,
+            id: { not: id },
+            published: true,
+          },
+          include: authorInclude,
+          take,
+          skip: offset,
+          orderBy: { createdAt: 'desc' },
+        })) as ArticleWithRelations[];
+        for (const a of res) {
+          collectedIds.add(a.id);
+        }
+        results.push(...res);
+      }
+      console.log(
+        `[findRelated] Tier 1 (loc+cat): count=${count1}, collected=${results.length}`,
+      );
+    }
+
+    if (results.length >= limit) return this.mapToWithLiked(results);
+
+    // --- Tier 2: Same Location, Different Category ---
+    let count2 = 0;
+    if (loc) {
+      count2 = await this.prisma.article.count({
+        where: {
+          location: locEquals,
+          category: { not: cat },
+          id: { notIn: [...collectedIds] },
+          published: true,
+        },
+      });
+
+      const effectiveOffset2 = Math.max(0, offset - count1);
+      if (effectiveOffset2 < count2) {
+        const take = Math.min(
+          limit - results.length,
+          count2 - effectiveOffset2,
+        );
+        const res = (await this.prisma.article.findMany({
+          where: {
+            location: locEquals,
+            category: { not: cat },
+            id: { notIn: [...collectedIds] },
+            published: true,
+          },
+          include: authorInclude,
+          take,
+          skip: effectiveOffset2,
+          orderBy: { createdAt: 'desc' },
+        })) as ArticleWithRelations[];
+        for (const a of res) {
+          collectedIds.add(a.id);
+        }
+        results.push(...res);
+      }
+      console.log(
+        `[findRelated] Tier 2 (loc only): count=${count2}, collected=${results.length}`,
+      );
+    }
+
+    if (results.length >= limit) return this.mapToWithLiked(results);
+
+    // --- Tier 3: Same Category, Different Location ---
+    let count3 = 0;
+    const where3: Prisma.ArticleWhereInput = {
+      category: cat,
+      id: { notIn: [...collectedIds] },
+      published: true,
+    };
+    if (loc) {
+      where3.location = locNotEquals as Prisma.StringFilter;
+    }
+
+    count3 = await this.prisma.article.count({ where: where3 });
+
+    const totalPrev = count1 + count2;
+    const effectiveOffset3 = Math.max(0, offset - totalPrev);
+
+    if (effectiveOffset3 < count3) {
+      const take = Math.min(limit - results.length, count3 - effectiveOffset3);
+      const res = (await this.prisma.article.findMany({
+        where: where3,
+        include: authorInclude,
+        take,
+        skip: effectiveOffset3,
+        orderBy: { createdAt: 'desc' },
+      })) as ArticleWithRelations[];
+      for (const a of res) {
+        collectedIds.add(a.id);
+      }
+      results.push(...res);
+    }
+    console.log(
+      `[findRelated] Tier 3 (cat only): count=${count3}, collected=${results.length}`,
+    );
+
+    if (results.length >= limit) return this.mapToWithLiked(results);
+
+    // --- Tier 4: Fallback (Different location AND different category) ---
+    const where4: Prisma.ArticleWhereInput = {
+      id: { notIn: [...collectedIds] },
+      published: true,
+      category: { not: cat },
+    };
+    if (loc) {
+      where4.location = locNotEquals as Prisma.StringFilter;
+    }
+
+    const totalPrev4 = count1 + count2 + count3;
+    const effectiveOffset4 = Math.max(0, offset - totalPrev4);
+    const take4 = limit - results.length;
+
+    const res4 = (await this.prisma.article.findMany({
+      where: where4,
+      include: authorInclude,
+      take: take4,
+      skip: effectiveOffset4,
+      orderBy: [{ views: 'desc' }, { createdAt: 'desc' }],
+    })) as ArticleWithRelations[];
+    results.push(...res4);
+    console.log(`[findRelated] Tier 4 (fallback): collected=${results.length}`);
+
+    return this.mapToWithLiked(results);
+  }
+
+  private mapToWithLiked(
+    articles: ArticleWithRelations[],
+  ): (Article & { liked: boolean })[] {
+    return articles.map((article) => {
+      const { likedBy, ...rest } = article;
+      return {
+        ...rest,
+        liked: !!(likedBy && likedBy.length > 0),
+      };
+    }) as (Article & { liked: boolean })[];
+  }
+
+  async findTrending(
+    limit = 4,
+    offset = 0,
+    excludeId?: string,
+    userId?: string,
+  ): Promise<Article[]> {
+    const authorInclude = {
+      author: { select: { id: true, name: true, email: true, picture: true } },
+      likedBy: userId
+        ? {
+            where: { userId },
+            select: { id: true },
+          }
+        : undefined,
+    };
+
+    try {
+      // 1. Try fetching from ClickHouse
+      const fetchLimit = limit + offset + (excludeId ? 1 : 0);
+      const trendingData =
+        await this.analyticsQueryService.getTrendingPosts(fetchLimit);
+
+      if (trendingData && trendingData.length > 0) {
+        let trendingIds = trendingData.map((t) => t.post_id);
+
+        if (excludeId) {
+          trendingIds = trendingIds.filter((id) => id !== excludeId);
+        }
+
+        const articles = await this.prisma.article.findMany({
+          where: {
+            id: { in: trendingIds },
+            published: true,
+          },
+          include: authorInclude,
+        });
+
+        const orderedArticles = trendingIds
+          .map((id) =>
+            (articles as ArticleWithRelations[]).find((a) => a.id === id),
+          )
+          .filter((a): a is ArticleWithRelations => !!a);
+
+        if (orderedArticles.length > offset) {
+          return this.mapToWithLiked(
+            orderedArticles.slice(offset, offset + limit),
+          );
+        }
+
+        if (orderedArticles.length === 0 && offset === 0) {
+          throw new Error('No trending data');
+        }
+        return this.mapToWithLiked(
+          orderedArticles.slice(offset, offset + limit),
+        );
+      }
+    } catch (err) {
+      console.warn(
+        'ClickHouse trending fetch failed or empty, falling back to Prisma',
+        err,
+      );
+    }
+
+    // Fallback: Prisma Order By
+    const fallbackArticles = await this.prisma.article.findMany({
+      where: {
+        published: true,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      include: authorInclude,
+      orderBy: [{ views: 'desc' }, { createdAt: 'desc' }],
+      take: limit,
+      skip: offset,
+    });
+
+    return this.mapToWithLiked(fallbackArticles);
   }
 
   update(id: string, data: Prisma.ArticleUpdateInput): Promise<Article> {
@@ -383,5 +675,27 @@ export class ArticlesService {
       .catch((err) => console.error('Failed to track read:', err));
 
     return updatedArticle;
+  }
+
+  async backfillCommentCounts() {
+    console.log('Starting comment count backfill...');
+    const articles = await this.prisma.article.findMany({
+      select: { id: true },
+    });
+    let updated = 0;
+
+    for (const article of articles) {
+      const count = await this.prisma.comment.count({
+        where: { articleId: article.id, deletedAt: null },
+      });
+
+      await this.prisma.article.update({
+        where: { id: article.id },
+        data: { commentCount: count },
+      });
+      updated++;
+    }
+    console.log(`Backfilled comment counts for ${updated} articles.`);
+    return { count: updated };
   }
 }

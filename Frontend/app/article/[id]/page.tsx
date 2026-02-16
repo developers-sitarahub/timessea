@@ -25,6 +25,10 @@ import { motion } from "framer-motion";
 import type { Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
+import {
+  ArticleCardVertical,
+  ArticleCardHorizontal,
+} from "@/components/article-card";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -42,6 +46,7 @@ interface CommentType {
     picture?: string;
   };
   replies: CommentType[];
+  liked?: boolean;
 }
 
 // ─── Single Comment Component (recursive for replies) ──────────
@@ -135,9 +140,17 @@ function CommentItem({
                 if (!token) onAuthRequired();
                 else onLike(comment.id);
               }}
-              className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground hover:text-red-500 transition-colors"
+              className={cn(
+                "flex items-center gap-1 text-[11px] font-semibold transition-colors",
+                comment.liked
+                  ? "text-red-500"
+                  : "text-muted-foreground hover:text-red-500",
+              )}
             >
-              <Heart className="w-3 h-3" strokeWidth={2} />
+              <Heart
+                className={cn("w-3 h-3", comment.liked && "fill-current")}
+                strokeWidth={2}
+              />
               {comment.likes > 0 && comment.likes}
             </button>
 
@@ -253,6 +266,15 @@ export default function ArticlePage({
   const [loadingComments, setLoadingComments] = useState(false);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [relatedArticles, setRelatedArticles] = useState<Article[]>([]);
+  const [trendingArticles, setTrendingArticles] = useState<Article[]>([]);
+  const [loadingRelated, setLoadingRelated] = useState(true);
+  const [loadingTrending, setLoadingTrending] = useState(true);
+  const [relatedOffset, setRelatedOffset] = useState(0);
+  const [trendingOffset, setTrendingOffset] = useState(0);
+  const [hasMoreRelated, setHasMoreRelated] = useState(true);
+  const [hasMoreTrending, setHasMoreTrending] = useState(true);
+  const [trendingVisibleCount, setTrendingVisibleCount] = useState(4);
 
   // Delayed read counting (1 minute threshold for "read")
   useEffect(() => {
@@ -282,7 +304,12 @@ export default function ArticlePage({
           () => {},
         );
 
-        const res = await fetch(`${API_URL}/api/articles/${id}`);
+        const headers: HeadersInit = {};
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+
+        const res = await fetch(`${API_URL}/api/articles/${id}`, { headers });
         if (res.ok) {
           const data = await res.json();
           setArticle(data);
@@ -298,7 +325,7 @@ export default function ArticlePage({
       }
     }
     fetchArticle();
-  }, [id]);
+  }, [id, token]);
 
   useEffect(() => {
     fetch(`${API_URL}/api/comments/article/${id}/count`)
@@ -307,11 +334,112 @@ export default function ArticlePage({
       .catch(() => {});
   }, [id]);
 
+  // Fetch related articles
+  useEffect(() => {
+    // Initial Fetch for Related and Trending
+    async function initData() {
+      setLoadingRelated(true);
+      setLoadingTrending(true);
+      try {
+        // Fetch initial Related (Limit 4)
+        const resRelated = await fetch(
+          `${API_URL}/api/articles/${id}/related?limit=4&offset=0&t=${Date.now()}`,
+        );
+        if (resRelated.ok) {
+          const data = await resRelated.json();
+          setRelatedArticles(data);
+          if (data.length < 4) setHasMoreRelated(false);
+          setRelatedOffset(4);
+        }
+
+        // Fetch initial Trending (Limit 4)
+        // Note: pass excludeId={id} to filter current viewing article from trending list
+        // Fetch 10 initially to have a buffer after filtering related ones
+        const resTrending = await fetch(
+          `${API_URL}/api/articles/trending/all?limit=10&offset=0&excludeId=${id}`,
+        );
+        if (resTrending.ok) {
+          const data = await resTrending.json();
+          setTrendingArticles(data);
+          if (data.length < 10) setHasMoreTrending(false);
+          setTrendingOffset(10);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingRelated(false);
+        setLoadingTrending(false);
+      }
+    }
+
+    if (id) initData();
+  }, [id]);
+
+  const loadMoreRelated = async () => {
+    try {
+      const res = await fetch(
+        `${API_URL}/api/articles/${id}/related?limit=4&offset=${relatedOffset}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.length > 0) {
+          setRelatedArticles((prev) => [...prev, ...data]);
+          setRelatedOffset((prev) => prev + 4);
+          if (data.length < 4) setHasMoreRelated(false);
+        } else {
+          setHasMoreRelated(false);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load more related", e);
+    }
+  };
+
+  const loadMoreTrending = async () => {
+    const filteredTrending = trendingArticles.filter(
+      (t) => !relatedArticles.some((r) => r.id === t.id),
+    );
+
+    // If we have more articles already fetched but not shown, show them first
+    if (trendingVisibleCount < filteredTrending.length) {
+      setTrendingVisibleCount((prev) => prev + 4);
+      return;
+    }
+
+    if (!hasMoreTrending) return;
+
+    try {
+      const res = await fetch(
+        `${API_URL}/api/articles/trending/all?limit=4&offset=${trendingOffset}&excludeId=${id}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.length > 0) {
+          setTrendingArticles((prev) => [...prev, ...data]);
+          setTrendingOffset((prev) => prev + 4);
+          setTrendingVisibleCount((prev) => prev + 4);
+          if (data.length < 4) setHasMoreTrending(false);
+        } else {
+          setHasMoreTrending(false);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load more trending", e);
+    }
+  };
+
   // Fetch comments
   const fetchComments = useCallback(async () => {
     setLoadingComments(true);
     try {
-      const res = await fetch(`${API_URL}/api/comments/article/${id}`);
+      const headers: HeadersInit = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${API_URL}/api/comments/article/${id}`, {
+        headers,
+      });
       if (res.ok) {
         const data = await res.json();
         setComments(data);
@@ -332,7 +460,7 @@ export default function ArticlePage({
     } finally {
       setLoadingComments(false);
     }
-  }, [id]);
+  }, [id, token]);
 
   // Load comments when section opens
   useEffect(() => {
@@ -361,8 +489,14 @@ export default function ArticlePage({
     });
 
     try {
+      const headers: HeadersInit = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       await fetch(`${API_URL}/api/articles/${id}/like`, {
         method: "POST",
+        headers,
       });
     } catch (e) {
       console.error("Failed to like", e);
@@ -464,14 +598,49 @@ export default function ArticlePage({
   };
 
   // Like a comment
+  // Like a comment
   const handleLikeComment = async (commentId: string) => {
+    if (!token) {
+      setShowAuthModal(true);
+      return;
+    }
+
     try {
-      await fetch(`${API_URL}/api/comments/${commentId}/like`, {
-        method: "POST",
+      // Optimistic update locally
+      setComments((prevComments) => {
+        const updateComments = (list: CommentType[]): CommentType[] => {
+          return list.map((c) => {
+            if (c.id === commentId) {
+              const willLike = !c.liked;
+              return {
+                ...c,
+                liked: willLike,
+                likes: willLike ? c.likes + 1 : Math.max(0, c.likes - 1),
+              };
+            }
+            if (c.replies && c.replies.length > 0) {
+              return { ...c, replies: updateComments(c.replies) };
+            }
+            return c;
+          });
+        };
+        return updateComments(prevComments);
       });
-      await fetchComments();
+
+      const res = await fetch(`${API_URL}/api/comments/${commentId}/like`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        // Revert on failure (could implement more robust revert logic here)
+        await fetchComments();
+      }
     } catch (e) {
       console.error("Failed to like comment", e);
+      await fetchComments();
     }
   };
 
@@ -736,12 +905,17 @@ export default function ArticlePage({
 
         {/* ── Section 6: COVER IMAGE with Caption ── */}
         <figure className="mb-6 -mx-5">
-          <div className="w-full overflow-hidden bg-secondary relative aspect-video">
+          <div
+            className={cn(
+              "w-full overflow-hidden bg-secondary relative",
+              !article.image && "aspect-video",
+            )}
+          >
             {article.image ? (
               <img
                 src={article.image}
                 alt={article.imageCaption || article.title}
-                className="h-full w-full object-cover"
+                className="w-full h-auto"
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-secondary to-muted">
@@ -756,11 +930,11 @@ export default function ArticlePage({
           </div>
           {/* Image Caption — The Hindu style */}
           <figcaption className="px-5 pt-2 pb-0">
-            {article.imageCaption ? (
-              <p className="text-[12px] leading-relaxed text-muted-foreground">
-                {article.imageCaption}
+            {article.imageDescription || article.imageCaption ? (
+              <p className="text-[12px] leading-relaxed text-muted-foreground italic">
+                {article.imageDescription || article.imageCaption}
                 {article.imageCredit && (
-                  <span className="text-muted-foreground/70">
+                  <span className="text-muted-foreground/70 not-italic">
                     {" "}
                     | Photo Credit: {article.imageCredit}
                   </span>
@@ -779,16 +953,122 @@ export default function ArticlePage({
         </figure>
 
         {/* ── Section 7: ARTICLE BODY ── */}
-        <article className="px-1">
-          <div
-            className="prose prose-lg dark:prose-invert max-w-none font-serif leading-relaxed prose-img:rounded-xl prose-img:w-full prose-headings:font-black prose-a:text-primary prose-blockquote:border-l-4 prose-blockquote:border-red-600 dark:prose-blockquote:border-red-400 prose-blockquote:bg-secondary/10 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:not-italic prose-figcaption:font-sans prose-figcaption:text-[12px] prose-figcaption:text-muted-foreground prose-figcaption:mt-2 prose-figcaption:leading-relaxed"
-            dangerouslySetInnerHTML={{
-              __html: article.content.replace(
-                /!\[(.*?)\]\((.+?)\)/g,
-                '<figure class="my-8"><img src="$2" alt="$1" class="rounded-lg w-full"/><figcaption class="text-center text-sm text-muted-foreground mt-2 italic">$1</figcaption></figure>',
-              ),
-            }}
-          />
+        <article className="space-y-5 px-1">
+          {contentSegments.map((segment, index) => {
+            // ── Image segment: render as figure ──
+            if (segment.type === "image") {
+              return (
+                <figure
+                  key={`img-${index}`}
+                  className="my-6 mx-auto"
+                  style={{ maxWidth: "85%" }}
+                >
+                  <div className="overflow-hidden rounded-md border border-border/30 shadow-sm">
+                    <img
+                      src={segment.src}
+                      alt={segment.alt}
+                      className="w-full h-auto object-cover"
+                    />
+                  </div>
+                  {segment.alt &&
+                    segment.alt !== "Image" &&
+                    segment.alt !== "Article Image" && (
+                      <figcaption className="mt-1.5 text-[11px] text-muted-foreground text-center leading-relaxed italic">
+                        {segment.alt}
+                      </figcaption>
+                    )}
+                </figure>
+              );
+            }
+
+            // ── Text segment: split into paragraphs ──
+            const textParagraphs = segment.text
+              .split("\n\n")
+              .filter((p) => p.trim());
+            return textParagraphs.map((paragraph, pIdx) => {
+              const globalKey = `${index}-${pIdx}`;
+
+              // Skip empty paragraphs
+              if (!paragraph.trim()) return null;
+
+              // Bold section headings
+              if (paragraph.startsWith("**") && paragraph.endsWith("**")) {
+                const text = paragraph.replace(/\*\*/g, "");
+                return (
+                  <h2
+                    key={globalKey}
+                    className="text-lg font-black text-foreground pt-3 pb-1 tracking-tight"
+                    style={{
+                      fontFamily: "'Georgia', 'Times New Roman', serif",
+                    }}
+                  >
+                    {text}
+                  </h2>
+                );
+              }
+
+              // Markdown headings
+              if (paragraph.startsWith("##")) {
+                const text = paragraph.replace(/^##\s*/, "");
+                return (
+                  <h2
+                    key={globalKey}
+                    className="text-xl font-black text-foreground pt-5 pb-1.5 tracking-tight"
+                    style={{
+                      fontFamily: "'Georgia', 'Times New Roman', serif",
+                    }}
+                  >
+                    {text}
+                  </h2>
+                );
+              }
+
+              // Blockquotes — The Hindu editorial style
+              if (paragraph.startsWith(">")) {
+                const text = paragraph.replace(/^>\s*/, "");
+                return (
+                  <blockquote
+                    key={globalKey}
+                    className="border-l-3 border-red-600 dark:border-red-400 pl-4 py-2 my-5 text-[17px] font-medium text-foreground/85 leading-relaxed"
+                    style={{
+                      fontFamily: "'Georgia', 'Times New Roman', serif",
+                    }}
+                  >
+                    <span className="italic">&ldquo;{text}&rdquo;</span>
+                  </blockquote>
+                );
+              }
+
+              // Regular paragraphs — The Hindu body text style
+              // Clean any leftover image remnants from text
+              const cleanedParagraph = stripImageMarkdown(paragraph);
+              if (!cleanedParagraph.trim()) return null;
+
+              const parts = cleanedParagraph.split(/(\*\*[^*]+\*\*)/);
+              // Determine if this is the very first text paragraph
+              const isFirstTextParagraph = index === 0 && pIdx === 0;
+
+              return (
+                <p
+                  key={globalKey}
+                  className="text-[16px] sm:text-[17px] leading-[1.85] text-foreground/85 tracking-[0.01em]"
+                  style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
+                >
+                  {/* First paragraph: dateline style with location */}
+                  {parts.map((part, i) => {
+                    if (part.startsWith("**") && part.endsWith("**")) {
+                      return (
+                        <strong key={i} className="font-bold text-foreground">
+                          {part.replace(/\*\*/g, "")}
+                        </strong>
+                      );
+                    }
+                    return <span key={i}>{part}</span>;
+                  })}
+                </p>
+              );
+            });
+          })}
         </article>
 
         {/* ── Section 8: Tags ── */}
@@ -965,27 +1245,97 @@ export default function ArticlePage({
           </div>
         )}
 
-        {/* ── Section 12: Related Stories (Skeleton Loading) ── */}
+        {/* ── Section 12: Related Stories ── */}
         <div className="mt-12 mb-20 px-1 border-t border-border/40 pt-10">
           <h3 className="text-[18px] font-black tracking-tight text-foreground mb-6 flex items-center gap-2 font-serif">
             <TrendingUp className="w-5 h-5 text-primary" />
             Related Stories
           </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="group cursor-wait">
-                <div className="aspect-[16/9] w-full bg-secondary rounded-2xl mb-3 overflow-hidden animate-pulse relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent -translate-x-full animate-[shimmer_2s_infinite]" />
-                </div>
-                <div className="space-y-2">
-                  <div className="h-4 w-1/4 bg-secondary rounded-md animate-pulse" />
-                  <div className="h-5 w-full bg-secondary rounded-md animate-pulse" />
-                  <div className="h-5 w-2/3 bg-secondary rounded-md animate-pulse" />
-                </div>
+          {loadingRelated ? (
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="group cursor-wait">
+                    <div className="aspect-[16/9] w-full bg-secondary rounded-2xl mb-3 overflow-hidden animate-pulse relative" />
+                    <div className="space-y-2">
+                      <div className="h-4 w-1/4 bg-secondary rounded-md animate-pulse" />
+                      <div className="h-5 w-full bg-secondary rounded-md animate-pulse" />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="space-y-16">
+              {/* RELATED SECTION */}
+              {relatedArticles.length > 0 ? (
+                <div className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {relatedArticles.map((article) => (
+                      <div key={article.id} className="h-full">
+                        <ArticleCardVertical article={article} />
+                      </div>
+                    ))}
+                  </div>
+                  {hasMoreRelated && (
+                    <div className="text-center pt-4">
+                      <button
+                        onClick={loadMoreRelated}
+                        className="px-6 py-2.5 rounded-full bg-secondary/50 hover:bg-secondary text-sm font-bold text-foreground transition-all"
+                      >
+                        Load More Related Stories
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  No related stories found.
+                </p>
+              )}
+
+              {/* TRENDING SECTION */}
+              {(() => {
+                const filteredTrending = trendingArticles.filter(
+                  (t) => !relatedArticles.some((r) => r.id === t.id),
+                );
+                if (filteredTrending.length === 0) return null;
+                return (
+                  <div className="pt-8 border-t border-border/40">
+                    <h4 className="text-[18px] font-black tracking-tight text-foreground mb-8 flex items-center gap-2 font-serif">
+                      <span className="w-1.5 h-6 bg-primary rounded-full" />
+                      Trending News
+                    </h4>
+                    <div className="flex flex-col gap-4">
+                      {filteredTrending
+                        .slice(0, trendingVisibleCount)
+                        .map((article) => (
+                          <div
+                            key={article.id}
+                            className="bg-card/30 rounded-2xl p-2 hover:bg-secondary/20 transition-colors"
+                          >
+                            <ArticleCardHorizontal article={article} />
+                          </div>
+                        ))}
+                    </div>
+                    {(hasMoreTrending ||
+                      filteredTrending.length > trendingVisibleCount) &&
+                      trendingVisibleCount >= 4 && (
+                        <div className="text-center pt-8">
+                          <button
+                            onClick={loadMoreTrending}
+                            className="px-6 py-2.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-sm font-bold transition-all shadow-sm"
+                          >
+                            Load More Trending News
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
       </div>
 

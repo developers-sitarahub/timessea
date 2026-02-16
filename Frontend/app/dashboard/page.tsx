@@ -32,13 +32,13 @@ import { useAuth } from "@/contexts/AuthContext"
 import { useRouter } from "next/navigation"
 
 const mockTrendData = [
-  { name: "Mon", views: 0, reads: 0 },
-  { name: "Tue", views: 0, reads: 0 },
-  { name: "Wed", views: 0, reads: 0 },
-  { name: "Thu", views: 0, reads: 0 },
-  { name: "Fri", views: 0, reads: 0 },
-  { name: "Sat", views: 0, reads: 0 },
-  { name: "Sun", views: 0, reads: 0 },
+  { name: "Mon", reads: 0, likes: 0, comments: 0 },
+  { name: "Tue", reads: 0, likes: 0, comments: 0 },
+  { name: "Wed", reads: 0, likes: 0, comments: 0 },
+  { name: "Thu", reads: 0, likes: 0, comments: 0 },
+  { name: "Fri", reads: 0, likes: 0, comments: 0 },
+  { name: "Sat", reads: 0, likes: 0, comments: 0 },
+  { name: "Sun", reads: 0, likes: 0, comments: 0 },
 ]
 
 interface DashboardStats {
@@ -58,6 +58,8 @@ interface TrendItem {
   fullDate: string;
   views: number;
   reads: number;
+  likes: number;
+  comments: number;
 }
 
 interface TopPost {
@@ -216,12 +218,16 @@ export default function DashboardPage() {
           <h3 className="font-bold text-foreground">Performance Trend</h3>
           <div className="flex gap-4">
             <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              <span className="h-2 w-2 rounded-full bg-primary" />
-              Views
-            </span>
-            <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
               <span className="h-2 w-2 rounded-full bg-pink-500" />
               Reads
+            </span>
+            <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              <span className="h-2 w-2 rounded-full bg-purple-500" />
+              Likes
+            </span>
+            <span className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              <span className="h-2 w-2 rounded-full bg-blue-500" />
+              Comments
             </span>
           </div>
         </div>
@@ -230,9 +236,9 @@ export default function DashboardPage() {
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart data={trendData}>
               <defs>
-                <linearGradient id="colorViews" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                  <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
+                <linearGradient id="colorReads" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#ec4899" stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor="#ec4899" stopOpacity={0}/>
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" opacity={0.4} />
@@ -274,21 +280,34 @@ export default function DashboardPage() {
               <Area 
                 yAxisId="left"
                 type="monotone" 
-                dataKey="views" 
-                stroke="hsl(var(--primary))" 
+                dataKey="reads" 
+                stroke="#ec4899" 
                 strokeWidth={3}
-                fill="url(#colorViews)" 
+                fill="url(#colorReads)" 
                 animationDuration={1500}
+                name="Reads"
               />
               <Line 
                 yAxisId="right"
                 type="monotone" 
-                dataKey="reads" 
-                stroke="#ec4899" 
+                dataKey="likes" 
+                stroke="#a855f7" 
                 strokeWidth={3}
-                dot={{ r: 4, fill: "#ec4899", strokeWidth: 2, stroke: "#fff" }}
+                dot={{ r: 4, fill: "#a855f7", strokeWidth: 2, stroke: "#fff" }}
                 activeDot={{ r: 6 }}
                 animationDuration={1500}
+                name="Likes"
+              />
+              <Line 
+                yAxisId="right"
+                type="monotone" 
+                dataKey="comments" 
+                stroke="#3b82f6" 
+                strokeWidth={3}
+                dot={{ r: 4, fill: "#3b82f6", strokeWidth: 2, stroke: "#fff" }}
+                activeDot={{ r: 6 }}
+                animationDuration={1500}
+                name="Comments"
               />
             </ComposedChart>
           </ResponsiveContainer>
