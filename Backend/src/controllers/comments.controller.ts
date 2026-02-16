@@ -1,19 +1,26 @@
 import {
   Controller,
-  Get,
   Post,
-  Delete,
   Body,
   Param,
+  Get,
+  Delete,
   Req,
   UseGuards,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { CommentsService } from '../services/comments.service';
 import { Comment } from '../generated/prisma/client';
+import { CreateCommentDto } from '../modules/comments/dto/create-comment.dto';
+import { JwtService } from '@nestjs/jwt';
+
+interface JwtPayload {
+  sub: string;
+  email: string;
+}
 
 interface RequestWithUser extends Request {
   user: {
@@ -24,41 +31,20 @@ interface RequestWithUser extends Request {
   };
 }
 
-@Controller('api/articles')
+@Controller('api/comments')
 export class CommentsController {
-  constructor(private readonly commentsService: CommentsService) {}
+  constructor(
+    private readonly commentsService: CommentsService,
+    private readonly jwtService: JwtService,
+  ) {}
 
-  /**
-   * GET /api/articles/:articleId/comments
-   * Get all comments for an article (tree structure)
-   */
-  @Get(':articleId/comments')
-  async getComments(@Param('articleId') articleId: string) {
-    return this.commentsService.findByArticle(articleId);
-  }
-
-  /**
-   * GET /api/articles/:articleId/comments/count
-   * Get comment count
-   */
-  @Get(':articleId/comments/count')
-  async getCommentCount(@Param('articleId') articleId: string) {
-    const count = await this.commentsService.getCount(articleId);
-    return { count };
-  }
-
-  /**
-   * POST /api/articles/:articleId/comments
-   * Create a comment (requires auth)
-   */
-  @Post(':articleId/comments')
+  @Post()
   @UseGuards(AuthGuard('jwt'))
-  async createComment(
-    @Param('articleId') articleId: string,
-    @Body() body: { content: string; parentId?: string },
+  async create(
+    @Body() createCommentDto: CreateCommentDto,
     @Req() req: RequestWithUser,
   ): Promise<Comment> {
-    if (!body.content || !body.content.trim()) {
+    if (!createCommentDto.content || !createCommentDto.content.trim()) {
       throw new HttpException(
         'Comment content is required',
         HttpStatus.BAD_REQUEST,
@@ -66,34 +52,49 @@ export class CommentsController {
     }
 
     return this.commentsService.create({
-      content: body.content.trim(),
-      articleId,
+      content: createCommentDto.content.trim(),
+      articleId: createCommentDto.articleId,
       authorId: req.user.id,
-      parentId: body.parentId,
+      parentId: createCommentDto.parentId,
     });
   }
 
-  /**
-   * POST /api/articles/:articleId/comments/:commentId/like
-   * Like a comment
-   */
-  @Post(':articleId/comments/:commentId/like')
-  async likeComment(@Param('commentId') commentId: string): Promise<Comment> {
-    return this.commentsService.likeComment(commentId);
+  @Post(':id/like')
+  @UseGuards(AuthGuard('jwt'))
+  async toggleLike(@Param('id') id: string, @Req() req: RequestWithUser) {
+    return this.commentsService.toggleLike(req.user.id, id);
   }
 
-  /**
-   * DELETE /api/articles/:articleId/comments/:commentId
-   * Delete a comment (requires auth, owner only)
-   */
-  @Delete(':articleId/comments/:commentId')
+  @Get('article/:articleId/count')
+  async getCount(@Param('articleId') articleId: string) {
+    const count = await this.commentsService.getCount(articleId);
+    return { count };
+  }
+
+  @Get('article/:articleId')
+  async findAll(@Param('articleId') articleId: string, @Req() req: Request) {
+    let userId: string | undefined;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        const decoded = this.jwtService.verify<JwtPayload>(token);
+        userId = decoded.sub;
+      } catch {
+        // Ignore invalid token
+      }
+    }
+    return this.commentsService.findByArticle(articleId, userId);
+  }
+
+  @Delete(':id')
   @UseGuards(AuthGuard('jwt'))
   async deleteComment(
-    @Param('commentId') commentId: string,
+    @Param('id') id: string,
     @Req() req: RequestWithUser,
   ): Promise<Comment> {
     try {
-      return await this.commentsService.delete(commentId, req.user.id);
+      return await this.commentsService.delete(id, req.user.id);
     } catch (error) {
       throw new HttpException(
         error instanceof Error ? error.message : 'Failed to delete comment',

@@ -14,6 +14,7 @@ import {
 import type { Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { useViewTracker } from "@/hooks/use-view-tracker";
+import { CommentsDrawer } from "@/components/comments-drawer";
 
 interface ReelCardProps {
   article: Article;
@@ -50,13 +51,22 @@ export function ReelCard({
   onView,
 }: ReelCardProps) {
   /* eslint-disable react-hooks/exhaustive-deps */
-
   const [showReadMore, setShowReadMore] = useState(false);
+  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const contentRef = useRef<HTMLParagraphElement>(null);
 
   const keyPoints = extractKeyPoints(article.content);
-  const commentCount = Math.floor(article.likes * 0.3);
+  // Initialize comment count state - use prop value for instant display, then fetch fresh
+  const [commentCount, setCommentCount] = useState(article.commentCount || 0);
+
+  useEffect(() => {
+    // Fetch comment count
+    fetch(`http://localhost:5000/api/comments/article/${article.id}/count`)
+      .then((res) => res.json())
+      .then((data) => setCommentCount(data.count))
+      .catch((err) => console.error("Failed to fetch comment count", err));
+  }, [article.id]);
 
   // Use the new centralized view tracker (10s threshold for articles)
   const { elementRef } = useViewTracker({
@@ -359,6 +369,7 @@ export function ReelCard({
           <button
             type="button"
             className="flex flex-col items-center gap-1 group"
+            onClick={() => setIsCommentsOpen(true)}
           >
             <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-muted/30 text-foreground border border-border/50 flex items-center justify-center shadow-md transition-all transform group-active:scale-90">
               <MessageCircle
@@ -416,6 +427,14 @@ export function ReelCard({
           </span>
         </div>
       )}
+
+      <CommentsDrawer
+        articleId={article.id}
+        open={isCommentsOpen}
+        onOpenChange={setIsCommentsOpen}
+        commentCount={commentCount}
+        onCommentAdded={() => setCommentCount((prev) => prev + 1)}
+      />
     </div>
   );
 }

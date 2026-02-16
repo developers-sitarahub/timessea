@@ -79,7 +79,7 @@ export class AnalyticsQueryService {
    */
   async getAuthorStats(
     authorId: string,
-  ): Promise<AuthorStats & { totalComments: number; totalDislikes: number }> {
+  ): Promise<AuthorStats & { totalComments: number }> {
     const [
       publishedCount,
       scheduledCount,
@@ -113,7 +113,6 @@ export class AnalyticsQueryService {
         _sum: {
           likes: true,
           views: true,
-          dislikes: true,
         },
         where: {
           authorId,
@@ -134,7 +133,6 @@ export class AnalyticsQueryService {
       draftCount,
       totalLikes: aggregates._sum.likes || 0,
       totalViews: aggregates._sum.views || 0,
-      totalDislikes: aggregates._sum.dislikes || 0,
       totalComments,
     };
   }
@@ -233,7 +231,7 @@ export class AnalyticsQueryService {
         _sum: {
           likes: true,
           views: true,
-          dislikes: true,
+          reads: true,
         },
         where: { authorId },
       }),
@@ -247,7 +245,7 @@ export class AnalyticsQueryService {
     const totalLikes = aggregates._sum.likes || 0;
     const totalViews = aggregates._sum.views || 0;
     const clickHouseViews = Number(overview.total_views) || 0;
-    const totalReads = Number(overview.total_reads) || 0;
+    const totalReads = aggregates._sum.reads || 0;
     const totalComments = Number(overview.total_comments) || 0;
     const totalShares = Number(overview.total_shares) || 0;
 
@@ -311,7 +309,6 @@ export class AnalyticsQueryService {
         total_views: totalViews,
         active_users: Number(overview.unique_viewers) || 0,
         total_likes: totalLikes,
-        total_dislikes: aggregates._sum.dislikes || 0,
         total_comments: prismaCommentCount,
         total_engagement: totalLikes + totalComments + totalShares,
         total_shares: totalShares,

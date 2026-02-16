@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { EditorAuthOverlay } from "@/components/editor-auth-overlay";
@@ -38,7 +38,7 @@ import { toast } from "react-toastify";
 import { showConfirmDelete } from "@/lib/confirm-delete";
 import { ContentBlock } from "@/components/content-block";
 
-export default function EditorPage() {
+function EditorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const draftId = searchParams.get("draft");
@@ -564,8 +564,6 @@ export default function EditorPage() {
     likes: 0,
     views: 0,
     reads: 0,
-    dislikes: 0,
-    disliked: false,
     subheadline,
     location,
     type: articleType as any,
@@ -794,7 +792,7 @@ export default function EditorPage() {
                             className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                           />
                         ) : (
-                          <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-secondary to-muted">
+                          <div className="h-full w-full flex items-center justify-center bg-linear-to-br from-secondary to-muted">
                             <span className="text-4xl font-black text-foreground/5 font-serif">
                               {post.title.charAt(0)}
                             </span>
@@ -1247,5 +1245,19 @@ export default function EditorPage() {
         </AnimatePresence>
       </div>
     </AppShell>
+  );
+}
+
+export default function EditorPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
+          Loading Editor...
+        </div>
+      }
+    >
+      <EditorContent />
+    </Suspense>
   );
 }

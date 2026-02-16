@@ -10,6 +10,16 @@ import { AnalyticsService } from './analytics.service';
 import { AnalyticsEventType } from '../modules/analytics/analytics.interface';
 import { Cron, CronExpression } from '@nestjs/schedule';
 
+interface ArticleWithRelations extends Article {
+  author: {
+    id: string;
+    name: string | null;
+    email: string;
+    picture: string | null;
+  };
+  likedBy?: { id: string }[];
+}
+
 @Injectable()
 export class ArticlesService {
   constructor(
@@ -101,7 +111,12 @@ export class ArticlesService {
     return this.prisma.article.create({ data });
   }
 
-  async findAll(limit = 20, offset = 0, hasMedia = false): Promise<Article[]> {
+  async findAll(
+    limit = 20,
+    offset = 0,
+    hasMedia = false,
+    userId?: string,
+  ): Promise<any[]> {
     const start = Date.now();
     const where: Prisma.ArticleWhereInput = {
       published: true,
@@ -111,6 +126,7 @@ export class ArticlesService {
       where.OR = [{ image: { not: null } }, { media: { not: Prisma.DbNull } }];
     }
 
+    console.log(`ArticlesService: findAll called with userId: ${userId}`);
     const articles = await this.prisma.article.findMany({
       where,
       take: limit,
@@ -124,11 +140,30 @@ export class ArticlesService {
             picture: true,
           },
         },
+        likedBy: userId
+          ? {
+              where: { userId },
+              select: { id: true },
+            }
+          : undefined,
       },
       orderBy: { createdAt: 'desc' },
     });
-    console.log(`findAll took ${Date.now() - start}ms for ${limit} items`);
-    return articles;
+    console.log(`findAll found ${articles.length} articles`);
+    if (articles.length > 0 && userId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      console.log('First article likedBy:', (articles[0] as any).likedBy);
+    }
+
+    const typedArticles = articles as unknown as ArticleWithRelations[];
+
+    return typedArticles.map((article) => {
+      const { likedBy, ...rest } = article;
+      return {
+        ...rest,
+        liked: likedBy && likedBy.length > 0 ? true : false,
+      };
+    });
   }
 
   async findScheduled(): Promise<Article[]> {
@@ -203,25 +238,64 @@ export class ArticlesService {
     return this.prisma.article.delete({ where: { id } });
   }
 
-  async toggleLike(id: string): Promise<Article> {
+  async toggleLike(id: string, userId: string): Promise<Article> {
     const article = await this.prisma.article.findUnique({ where: { id } });
     if (!article) {
       throw new Error('Article not found');
     }
 
-    const willLike = !article.liked;
-    const wasDisliked = article.disliked;
-
-    return this.prisma.article.update({
-      where: { id },
-      data: {
-        liked: willLike,
-        likes: willLike ? article.likes + 1 : Math.max(0, article.likes - 1),
-        disliked: willLike ? false : wasDisliked,
-        dislikes: (willLike && wasDisliked) ? Math.max(0, article.dislikes - 1) : article.dislikes,
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-assignment
+    const existingLike = await (this.prisma as any).articleLike.findUnique({
+      where: {
+        userId_articleId: {
+          userId,
+          articleId: id,
+        },
       },
-      include: { author: true },
     });
+
+    if (existingLike) {
+      // Unlike
+      await this.prisma.$transaction([
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        (this.prisma as any).articleLike.delete({
+          where: {
+            userId_articleId: {
+              userId,
+              articleId: id,
+            },
+          },
+        }),
+        this.prisma.article.update({
+          where: { id },
+          data: {
+            likes: { decrement: 1 },
+          },
+        }),
+      ]);
+    } else {
+      // Like
+      await this.prisma.$transaction([
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        (this.prisma as any).articleLike.create({
+          data: {
+            userId,
+            articleId: id,
+          },
+        }),
+        this.prisma.article.update({
+          where: { id },
+          data: {
+            likes: { increment: 1 },
+          },
+        }),
+      ]);
+    }
+
+    return this.prisma.article.findUnique({
+      where: { id },
+      include: { author: true },
+    }) as Promise<Article>;
   }
 
   async toggleBookmark(id: string): Promise<Article> {
@@ -234,27 +308,6 @@ export class ArticlesService {
       where: { id },
       data: {
         bookmarked: !article.bookmarked,
-      },
-      include: { author: true },
-    });
-  }
-
-  async toggleDislike(id: string): Promise<Article> {
-    const article = await this.prisma.article.findUnique({ where: { id } });
-    if (!article) {
-      throw new Error('Article not found');
-    }
-
-    const willDislike = !article.disliked;
-    const wasLiked = article.liked;
-
-    return this.prisma.article.update({
-      where: { id },
-      data: {
-        disliked: willDislike,
-        dislikes: willDislike ? article.dislikes + 1 : Math.max(0, article.dislikes - 1),
-        liked: willDislike ? false : wasLiked,
-        likes: (willDislike && wasLiked) ? Math.max(0, article.likes - 1) : article.likes,
       },
       include: { author: true },
     });
@@ -316,6 +369,18 @@ export class ArticlesService {
       },
       include: { author: true },
     });
+
+    // Track read event in ClickHouse
+    this.analyticsService
+      .track({
+        event: AnalyticsEventType.POST_READ,
+        post_id: id,
+        user_id: userId,
+        metadata: {
+          source: 'app',
+        },
+      })
+      .catch((err) => console.error('Failed to track read:', err));
 
     return updatedArticle;
   }
