@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from '../services/auth.service';
-import { Response, Request } from 'express';
+import type { Response, Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -17,11 +17,14 @@ export class AuthController {
 
   @Get('google')
   @UseGuards(AuthGuard('google'))
-  async googleAuth(@Req() req) {}
+  async googleAuth() {}
 
   @Get('google/callback')
   @UseGuards(AuthGuard('google'))
-  async googleAuthRedirect(@Req() req, @Res() res: Response) {
+  async googleAuthRedirect(
+    @Req() req: Request & { user: any },
+    @Res() res: Response,
+  ) {
     const data = await this.authService.login(req.user);
 
     // Set refresh token as httpOnly cookie (secure, not accessible via JavaScript)
@@ -41,13 +44,13 @@ export class AuthController {
 
   @Get('profile')
   @UseGuards(AuthGuard('jwt'))
-  getProfile(@Req() req) {
+  getProfile(@Req() req: Request & { user: any }): any {
     return req.user;
   }
 
   @Post('refresh')
   async refresh(@Req() req: Request, @Res() res: Response) {
-    const refreshToken = req.cookies['refreshToken'];
+    const refreshToken = req.cookies?.['refreshToken'] as string | undefined;
 
     if (!refreshToken) {
       throw new UnauthorizedException('No refresh token provided');
@@ -61,7 +64,7 @@ export class AuthController {
         access_token: data.access_token,
         user: data.user,
       });
-    } catch (error) {
+    } catch {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
   }
@@ -69,7 +72,7 @@ export class AuthController {
   @Post('logout')
   @UseGuards(AuthGuard('jwt'))
   async logout(@Req() req: Request, @Res() res: Response) {
-    const refreshToken = req.cookies['refreshToken'];
+    const refreshToken = req.cookies?.['refreshToken'] as string | undefined;
 
     if (refreshToken) {
       await this.authService.revokeRefreshToken(refreshToken);

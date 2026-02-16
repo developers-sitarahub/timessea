@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Request } from 'express';
 import { AnalyticsService } from '../services/analytics.service';
@@ -66,7 +75,9 @@ export class AnalyticsController {
   @Get('dashboard')
   @UseGuards(AuthGuard('jwt'))
   async getDashboardAnalytics(@Req() req) {
-    return await this.analyticsQueryService.getAuthorDashboardStats(req.user.id);
+    return await this.analyticsQueryService.getAuthorDashboardStats(
+      req.user.id,
+    );
   }
 
   /**
