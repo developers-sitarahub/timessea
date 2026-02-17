@@ -59,6 +59,12 @@ export class ArticlesController {
     return this.articlesService.findDrafts(req.user.id);
   }
 
+  @Get('user/published')
+  @UseGuards(AuthGuard('jwt'))
+  async getPublishedArticles(@Req() req: Request & { user: { id: string } }) {
+    return this.articlesService.findPublished(req.user.id);
+  }
+
   @Get()
   async findAll(
     @Query('limit') limit?: string,
@@ -132,8 +138,12 @@ export class ArticlesController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.articlesService.remove(id);
+  @UseGuards(AuthGuard('jwt'))
+  remove(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { id: string } },
+  ) {
+    return this.articlesService.remove(id, req.user.id);
   }
 
   @Post(':id/like')

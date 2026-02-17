@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { useViewTracker } from "@/hooks/use-view-tracker";
 import { CommentsDrawer } from "@/components/comments-drawer";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
 interface ReelCardProps {
   article: Article;
   index: number;
@@ -62,7 +64,7 @@ export function ReelCard({
 
   useEffect(() => {
     // Fetch comment count
-    fetch(`http://127.0.0.1:5000/api/comments/article/${article.id}/count`)
+    fetch(`${API_URL}/api/comments/article/${article.id}/count`)
       .then((res) => res.json())
       .then((data) => setCommentCount(data.count))
       .catch((err) => console.error("Failed to fetch comment count", err));
@@ -461,7 +463,13 @@ export function ReelCard({
         open={isCommentsOpen}
         onOpenChange={setIsCommentsOpen}
         commentCount={commentCount}
-        onCommentAdded={() => setCommentCount((prev) => prev + 1)}
+        onCommentChange={() => {
+          // Refetch count
+          fetch(`${API_URL}/api/comments/article/${article.id}/count`)
+            .then((res) => res.json())
+            .then((data) => setCommentCount(data.count))
+            .catch((err) => console.error("Failed to fetch comment count", err));
+        }}
       />
     </div>
   );

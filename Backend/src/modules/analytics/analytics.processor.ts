@@ -27,7 +27,7 @@ export class AnalyticsProcessor extends WorkerHost {
       await this.clickhouseService.insert('analytics.events', [
         {
           event: event.event,
-          user_id: event.user_id || 'anonymous', // Ensure user_id is not null if schema requires UUID
+          user_id: event.user_id || '00000000-0000-0000-0000-000000000000', // Ensure user_id is a valid UUID for ClickHouse
           post_id: event.post_id || null,
           post_status: event.post_status || null,
           location_id: event.location_id || null,

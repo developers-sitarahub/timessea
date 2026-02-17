@@ -33,6 +33,12 @@ export class ArticlesService {
     private analyticsQueryService: AnalyticsQueryService,
   ) {}
 
+  private ensureValidUUID(id: string): string {
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    return uuidRegex.test(id) ? id : '00000000-0000-0000-0000-000000000000';
+  }
+
   @Cron(CronExpression.EVERY_30_SECONDS)
   async handleScheduledPosts() {
     const now = new Date();
@@ -122,6 +128,7 @@ export class ArticlesService {
   ): Promise<any[]> {
     const where: Prisma.ArticleWhereInput = {
       published: true,
+      deletedAt: null,
     };
 
     if (hasMedia) {
@@ -194,6 +201,32 @@ export class ArticlesService {
     const where: Prisma.ArticleWhereInput = {
       published: false,
       scheduledAt: null,
+    };
+
+    if (authorId) {
+      where.authorId = authorId;
+    }
+
+    return this.prisma.article.findMany({
+      where,
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            picture: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findPublished(authorId?: string): Promise<Article[]> {
+    const where: Prisma.ArticleWhereInput = {
+      published: true,
+      deletedAt: null,
     };
 
     if (authorId) {
@@ -526,8 +559,27 @@ export class ArticlesService {
     return this.prisma.article.update({ where: { id }, data });
   }
 
-  remove(id: string): Promise<Article> {
-    return this.prisma.article.delete({ where: { id } });
+  async remove(id: string, userId: string): Promise<Article> {
+    const article = await this.prisma.article.findUnique({
+      where: { id },
+      select: { authorId: true },
+    });
+
+    if (!article) {
+      throw new Error('Article not found');
+    }
+
+    if (article.authorId !== userId) {
+      throw new Error('You are not authorized to delete this article');
+    }
+
+    return this.prisma.article.update({
+      where: { id },
+      data: { 
+        deletedAt: new Date(),
+        published: false // Also unpublish it from public feed
+      },
+    });
   }
 
   async toggleLike(id: string, userId: string): Promise<Article> {
@@ -565,6 +617,14 @@ export class ArticlesService {
           },
         }),
       ]);
+
+      // Track unlike event
+      this.analyticsService.track({
+        event: AnalyticsEventType.UNLIKE,
+        post_id: id,
+        user_id: this.ensureValidUUID(userId),
+        created_at: new Date(),
+      });
     } else {
       // Like
       await this.prisma.$transaction([
@@ -582,6 +642,14 @@ export class ArticlesService {
           },
         }),
       ]);
+
+      // Track like event
+      this.analyticsService.track({
+        event: AnalyticsEventType.LIKE,
+        post_id: id,
+        user_id: this.ensureValidUUID(userId),
+        created_at: new Date(),
+      });
     }
 
     return this.prisma.article.findUnique({
@@ -634,7 +702,7 @@ export class ArticlesService {
       .track({
         event: AnalyticsEventType.POST_VIEW,
         post_id: id,
-        user_id: userId,
+        user_id: this.ensureValidUUID(userId),
         metadata: {
           source: 'app',
         },
@@ -667,7 +735,7 @@ export class ArticlesService {
       .track({
         event: AnalyticsEventType.POST_READ,
         post_id: id,
-        user_id: userId,
+        user_id: this.ensureValidUUID(userId),
         metadata: {
           source: 'app',
         },
