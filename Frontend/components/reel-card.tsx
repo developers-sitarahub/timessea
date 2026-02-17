@@ -92,7 +92,7 @@ export function ReelCard({
       media.push({
         type: "image",
         url: article.image,
-        caption: article.imageDescription || article.imageCaption || undefined,
+        caption: (article.imageDescription || article.imageCaption || "").replace(/<[^>]*>?/gm, "").trim() || undefined,
       });
     } else if (imageSrc) {
       media.push({
@@ -117,7 +117,7 @@ export function ReelCard({
     while ((mdMatch = mdRegex.exec(article.content)) !== null) {
       const [_, alt, url] = mdMatch;
       if (!media.find((exist) => exist.url === url)) {
-        media.push({ type: "image", url, caption: alt });
+        media.push({ type: "image", url, caption: alt.replace(/<[^>]*>?/gm, "").trim() });
       }
     }
 
@@ -134,7 +134,10 @@ export function ReelCard({
 
       if (imgMatch) {
         const url = imgMatch[1];
-        const caption = capMatch ? capMatch[1] : "";
+        let caption = capMatch ? capMatch[1] : "";
+        // Strip HTML from caption
+        caption = caption.replace(/<[^>]*>?/gm, "").trim();
+        
         if (!media.find((exist) => exist.url === url)) {
           media.push({ type: "image", url, caption });
         }
@@ -345,12 +348,22 @@ export function ReelCard({
                 ref={contentRef}
                 className={cn("whitespace-pre-wrap", "line-clamp-5")}
               >
-                {article.content
-                  .replace(/!\[.*?\]\(.*?\)/g, "") // Remove markdown images
-                  .replace(/<[^>]*>/g, "") // Remove HTML tags
-                  .replace(/\*\*([^*]+)\*\*/g, "$1") // Remove bold syntax
-                  .replace(/\n+/g, "\n")
-                  .trim()}
+                {((text) => {
+                  return text
+                    // 1. Try removing complete markdown image tags first
+                    .replace(/!\[[\s\S]*?\]\s*\([\s\S]*?\)/g, "")
+                    // 2. Aggressively remove data URIs (even if truncated/missing closing paren)
+                    .replace(/\(data:image\/[^\s)]*/g, "") // Matches (data:image/... until space or end
+                    .replace(/data:image\/[^\s)]*/g, "") // Matches raw data:image/... until space
+                    // 3. Remove any remaining isolated image syntax
+                    .replace(/!\[[\s\S]*?\]/g, "")
+                    // 4. Clean HTML and whitespace
+                    .replace(/<[^>]*>/g, "") // Remove ALL HTML tags
+                    .replace(/&nbsp;/g, " ") // Replace non-breaking spaces
+                    .replace(/\*\*([^*]+)\*\*/g, "$1") // Remove bold syntax
+                    .replace(/\s+/g, " ") // Collapse multiple spaces
+                    .trim();
+                })(article.content)}
               </p>
 
               {showReadMore && (

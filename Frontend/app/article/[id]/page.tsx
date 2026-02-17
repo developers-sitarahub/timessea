@@ -988,7 +988,11 @@ export default function ArticlePage({
               {(article.imageDescription || article.imageCaption) && (
                 <>
                   <span className="font-semibold text-foreground/80 lowercase first-letter:uppercase">
-                    {article.imageDescription || article.imageCaption}
+                    {(() => {
+                      const desc = article.imageDescription || article.imageCaption || "";
+                      // Strip any HTML tags that might have been pasted (e.g. from rich text editor)
+                      return desc.replace(/<[^>]*>?/gm, "").trim();
+                    })()}
                   </span>
                   <span className="text-border/80 font-light px-1">|</span>
                 </>
