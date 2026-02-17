@@ -967,7 +967,7 @@ export default function ArticlePage({
 
         {/* ── Section 6: COVER IMAGE with Caption ── */}
         <figure className="mb-10 -mx-5 bg-secondary/5">
-          <div className="w-full overflow-hidden bg-secondary relative aspect-[16/10] sm:aspect-[21/9]">
+          <div className="w-full overflow-hidden bg-secondary relative aspect-16/10 sm:aspect-[21/9]">
             {article.image ? (
               <img
                 src={article.image}
@@ -1341,11 +1341,11 @@ export default function ArticlePage({
 
       {/* Comment Delete Confirmation Modal */}
       {deletingCommentId && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-sm rounded-[32px] bg-card border border-border/50 shadow-2xl overflow-hidden p-6 text-center relative"
+            className="w-full max-w-sm rounded-4xl bg-card border border-border/50 shadow-2xl overflow-hidden p-6 text-center relative"
           >
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/10 text-destructive rotate-3">
               <AlertTriangle className="h-8 w-8" />
