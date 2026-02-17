@@ -11,7 +11,14 @@ import { formatDistanceToNow } from "date-fns";
 // Helper to remove markdown images from text
 const stripImageMarkdown = (text: string) => {
   return text
-    .replace(/!\[.*?\]\s*\(.*?\)/g, "") // Remove Markdown images
+    // 1. Try removing complete markdown image tags first
+    .replace(/!\[[\s\S]*?\]\s*\([\s\S]*?\)/g, "")
+    // 2. Aggressively remove data URIs (even if truncated/missing closing paren)
+    .replace(/\(data:image\/[^\s)]*/g, "") // Matches (data:image/... until space or end
+    .replace(/data:image\/[^\s)]*/g, "") // Matches raw data:image/... until space
+    // 3. Remove any remaining isolated image syntax
+    .replace(/!\[[\s\S]*?\]/g, "")
+    // 4. Clean HTML and whitespace
     .replace(/<[^>]*>/g, "") // Remove ALL HTML tags
     .replace(/&nbsp;/g, " ") // Replace non-breaking spaces
     .replace(/\s+/g, " ") // Collapse multiple spaces
