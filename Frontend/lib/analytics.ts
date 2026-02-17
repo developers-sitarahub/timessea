@@ -42,7 +42,7 @@ class AnalyticsService {
   private BATCH_SIZE = 5;
   private FLUSH_INTERVAL = 3000;
   private timer: NodeJS.Timeout | null = null;
-  private endpoint = "http://127.0.0.1:5000/api/analytics/track";
+  private endpoint = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/analytics/track`;
 
   constructor() {
     if (typeof window !== "undefined") {

@@ -26,6 +26,8 @@ export const viewport: Viewport = {
   ],
 };
 
+import { Toaster } from "@/components/toaster";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -43,7 +45,10 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <AnalyticsTracker />
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            {children}
+            <Toaster position="top-center" richColors />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -59,6 +59,12 @@ export class ArticlesController {
     return this.articlesService.findDrafts(req.user.id);
   }
 
+  @Get('user/published')
+  @UseGuards(AuthGuard('jwt'))
+  async getPublishedArticles(@Req() req: Request & { user: { id: string } }) {
+    return this.articlesService.findPublished(req.user.id);
+  }
+
   @Get()
   async findAll(
     @Query('limit') limit?: string,

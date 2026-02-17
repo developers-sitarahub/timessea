@@ -102,6 +102,15 @@ export class AnalyticsController {
   }
 
   /**
+   * Get trend for a specific post
+   * GET /analytics/post/:postId/trend
+   */
+  @Get('post/:postId/trend')
+  async getPostTrend(@Param('postId') postId: string) {
+    return await this.analyticsQueryService.getPostTrend(postId);
+  }
+
+  /**
    * Get platform-wide analytics (Admin only)
    * GET /analytics/platform
    */

@@ -2,11 +2,14 @@
 
 import { useEffect, useState, useRef } from "react";
 import { Drawer } from "vaul";
-import { Send, Heart, MessageCircle, Loader2, X } from "lucide-react";
+import { Send, Heart, MessageCircle, Loader2, X, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 interface User {
   id: string;
@@ -30,7 +33,7 @@ interface CommentsDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   commentCount: number;
-  onCommentAdded?: () => void;
+  onCommentChange?: () => void;
 }
 
 // Recursive helper to update a comment in the tree
@@ -93,6 +96,8 @@ interface CommentItemProps {
   comment: Comment;
   onReply: (comment: Comment) => void;
   onLike: (commentId: string) => void;
+  onDelete: (commentId: string) => void;
+  currentUserId?: string;
   depth?: number;
 }
 
@@ -100,11 +105,13 @@ const CommentItem = ({
   comment,
   onReply,
   onLike,
+  onDelete,
+  currentUserId,
   depth = 0,
 }: CommentItemProps) => {
   return (
-    <div className="group">
-      <div className="flex gap-3 items-start">
+    <div className={cn(depth > 0 && "mt-3")}>
+      <div className="group flex gap-3 items-start">
         {comment.author.picture ? (
           <Image
             src={comment.author.picture}
@@ -149,8 +156,29 @@ const CommentItem = ({
             </button>
             {comment.likes > 0 && (
               <span className="text-xs text-muted-foreground">
-                {comment.likes} likes
+                {comment.likes} {comment.likes === 1 ? "like" : "likes"}
               </span>
+            )}
+            {currentUserId === comment.author.id && (
+              <button
+                onClick={() => {
+                  toast("Delete Comment", {
+                    description: "Are you sure you want to delete this comment and its replies?",
+                    action: {
+                      label: "Delete",
+                      onClick: () => onDelete(comment.id),
+                    },
+                    cancel: {
+                      label: "Cancel",
+                      onClick: () => {},
+                    },
+                  });
+                }}
+                className="text-xs font-semibold text-muted-foreground/60 hover:text-destructive transition-colors flex items-center gap-1"
+              >
+                <Trash2 className="h-4 w-4" />
+                <span>Delete</span>
+              </button>
             )}
           </div>
         </div>
@@ -176,6 +204,8 @@ const CommentItem = ({
               comment={reply}
               onReply={onReply}
               onLike={onLike}
+              onDelete={onDelete}
+              currentUserId={currentUserId}
               depth={depth + 1}
             />
           ))}
@@ -190,7 +220,7 @@ export function CommentsDrawer({
   open,
   onOpenChange,
   commentCount: initialCommentCount,
-  onCommentAdded,
+  onCommentChange,
 }: CommentsDrawerProps) {
   const { token, user } = useAuth();
   const [comments, setComments] = useState<Comment[]>([]);
@@ -219,7 +249,7 @@ export function CommentsDrawer({
         headers["Authorization"] = `Bearer ${token}`;
       }
       const res = await fetch(
-        `http://localhost:5000/api/comments/article/${articleId}`,
+        `${API_URL}/api/comments/article/${articleId}`,
         { headers },
       );
       if (res.ok) {
@@ -269,7 +299,7 @@ export function CommentsDrawer({
     });
 
     try {
-      const res = await fetch("http://localhost:5000/api/comments", {
+      const res = await fetch(`${API_URL}/api/comments`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -290,7 +320,7 @@ export function CommentsDrawer({
           updateCommentInTree(prev, tempId, () => savedComment),
         );
 
-        onCommentAdded?.();
+        onCommentChange?.();
       } else {
         throw new Error("Failed to save comment");
       }
@@ -315,7 +345,7 @@ export function CommentsDrawer({
     );
 
     try {
-      await fetch(`http://localhost:5000/api/comments/${commentId}/like`, {
+      await fetch(`${API_URL}/api/comments/${commentId}/like`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -331,6 +361,28 @@ export function CommentsDrawer({
           likes: c.liked ? c.likes + 1 : c.likes - 1, // Inverse
         })),
       );
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_URL}/api/comments/${commentId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        setComments((prev) => removeCommentFromTree(prev, commentId));
+        toast.success("Comment and its replies deleted successfully");
+        onCommentChange?.(); // Refresh count
+      } else {
+        toast.error("Failed to delete comment");
+      }
+    } catch (error) {
+      console.error("Failed to delete comment", error);
+      toast.error("An error occurred while deleting the comment");
     }
   };
 
@@ -376,6 +428,8 @@ export function CommentsDrawer({
                   comment={comment}
                   onReply={setReplyingTo}
                   onLike={handleLike}
+                  onDelete={handleDeleteComment}
+                  currentUserId={user?.id}
                 />
               ))
             )}

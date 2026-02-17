@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
+import { AnalyticsService } from './analytics.service';
+import { AnalyticsEventType } from '../modules/analytics/analytics.interface';
 
 @Injectable()
 export class CommentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private analyticsService: AnalyticsService,
+  ) {}
 
-  /**
-   * Create a new comment (top-level or reply)
-   */
   /**
    * Create a new comment (top-level or reply)
    */
@@ -44,6 +46,14 @@ export class CommentsService {
         data: { commentCount: { increment: 1 } },
       });
 
+      // Track comment event
+      this.analyticsService.track({
+        event: AnalyticsEventType.COMMENT,
+        post_id: data.articleId,
+        user_id: data.authorId,
+        created_at: new Date(),
+      });
+
       return comment;
     });
   }
@@ -55,7 +65,7 @@ export class CommentsService {
   async findByArticle(articleId: string, userId?: string) {
     // Fetch all comments for the article
     const allComments = await this.prisma.comment.findMany({
-      where: { articleId }, // Fetch even deleted ones to maintain tree, frontend checks deletedAt
+      where: { articleId, deletedAt: null }, // Only fetch non-deleted comments
       include: {
         author: {
           select: {
@@ -193,7 +203,24 @@ export class CommentsService {
   }
 
   /**
-   * Delete a comment (soft delete)
+   * Helper to get all descendant IDs for recursive deletion
+   */
+  private async getAllDescendantIds(parentId: string): Promise<string[]> {
+    const children = await this.prisma.comment.findMany({
+      where: { parentId, deletedAt: null },
+      select: { id: true },
+    });
+
+    let ids = children.map((c) => c.id);
+    for (const id of ids) {
+      const descendantIds = await this.getAllDescendantIds(id);
+      ids = [...ids, ...descendantIds];
+    }
+    return ids;
+  }
+
+  /**
+   * Delete a comment (soft delete) and all its replies
    */
   async delete(commentId: string, userId: string) {
     // Only author can delete
@@ -205,24 +232,31 @@ export class CommentsService {
       throw new Error('Comment not found');
     }
 
+    if (comment.deletedAt) {
+      throw new Error('Comment is already deleted');
+    }
+
     if (comment.authorId !== userId) {
       throw new Error('Not authorized to delete this comment');
     }
 
+    const descendantIds = await this.getAllDescendantIds(commentId);
+    const allToDelete = [commentId, ...descendantIds];
+
     return this.prisma.$transaction(async (tx) => {
-      // Soft delete
-      const deletedComment = await tx.comment.update({
-        where: { id: commentId },
+      // Soft delete the comment and all its descendants
+      await tx.comment.updateMany({
+        where: { id: { in: allToDelete } },
         data: { deletedAt: new Date() },
       });
 
-      // Decrement article comment count
+      // Decrement article comment count by total number of deleted comments
       await tx.article.update({
         where: { id: comment.articleId },
-        data: { commentCount: { decrement: 1 } },
+        data: { commentCount: { decrement: allToDelete.length } },
       });
 
-      return deletedComment;
+      return comment;
     });
   }
 }

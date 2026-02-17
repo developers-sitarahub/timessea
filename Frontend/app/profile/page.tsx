@@ -317,7 +317,8 @@ export default function ProfilePage() {
         <div className="space-y-2">
           {activityItems.map((item, index) => {
             const isDrafts = item.label === "Draft Articles";
-            const href = isDrafts ? "/drafts" : "#";
+            const isPublished = item.label === "Published Articles";
+            const href = isDrafts ? "/drafts" : isPublished ? "/published" : "#";
 
             const content = (
               <>
@@ -325,7 +326,7 @@ export default function ProfilePage() {
                   <item.icon className="h-5 w-5" strokeWidth={2} />
                 </div>
                 <span className="flex-1 text-left text-sm font-bold text-foreground">
-                  {item.label}
+                   {item.label}
                 </span>
                 <span className="text-xs font-bold text-muted-foreground bg-secondary px-2.5 py-1 rounded-md group-hover:bg-background transition-colors">
                   {item.count}
@@ -334,7 +335,7 @@ export default function ProfilePage() {
               </>
             );
 
-            if (isDrafts) {
+            if (isDrafts || isPublished) {
               return (
                 <motion.div
                   initial={{ opacity: 0, x: -10 }}

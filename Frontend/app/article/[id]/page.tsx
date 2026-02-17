@@ -26,6 +26,7 @@ import type { Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
 import { ArticleCardVertical, ArticleCardHorizontal } from "@/components/article-card";
+import { toast } from "sonner";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -95,8 +96,8 @@ function CommentItem({
   };
 
   return (
-    <div className={cn("group", depth > 0 && "ml-8 mt-2")}>
-      <div className="flex gap-2.5">
+    <div className={cn(depth > 0 && "ml-8 mt-2")}>
+      <div className="group flex gap-2.5">
         {/* Avatar */}
         <div className="h-8 w-8 rounded-full overflow-hidden shrink-0 ring-1 ring-border/30">
           {comment.author.picture ? (
@@ -162,10 +163,23 @@ function CommentItem({
             </button>
             {currentUserId === comment.author.id && (
               <button
-                onClick={() => onDelete(comment.id)}
-                className="text-[11px] font-semibold text-muted-foreground hover:text-destructive transition-colors opacity-0 group-hover:opacity-100"
+                onClick={() => {
+                  toast("Delete Comment", {
+                    description: "Are you sure you want to delete this comment and its replies?",
+                    action: {
+                      label: "Delete",
+                      onClick: () => onDelete(comment.id),
+                    },
+                    cancel: {
+                      label: "Cancel",
+                      onClick: () => {},
+                    },
+                  });
+                }}
+                className="text-[11px] font-semibold text-muted-foreground/60 hover:text-destructive transition-colors flex items-center gap-1"
               >
-                <Trash2 className="w-3 h-3" />
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Delete</span>
               </button>
             )}
           </div>
@@ -579,10 +593,26 @@ export default function ArticlePage({
         },
       });
       if (res.ok) {
+        // Optimistic update locally to avoid waiting for fetch for better UX
+        setComments((prev) => {
+          const removeRec = (list: CommentType[]): CommentType[] => {
+            return list
+              .filter((c) => c.id !== commentId)
+              .map((c) => ({
+                ...c,
+                replies: c.replies ? removeRec(c.replies) : [],
+              }));
+          };
+          return removeRec(prev);
+        });
         await fetchComments();
+        toast.success("Comment and its replies deleted successfully");
+      } else {
+        toast.error("Failed to delete comment");
       }
     } catch (e) {
       console.error("Failed to delete comment", e);
+      toast.error("An error occurred while deleting the comment");
     }
   };
 
