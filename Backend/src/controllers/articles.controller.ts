@@ -138,8 +138,12 @@ export class ArticlesController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.articlesService.remove(id);
+  @UseGuards(AuthGuard('jwt'))
+  remove(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { id: string } },
+  ) {
+    return this.articlesService.remove(id, req.user.id);
   }
 
   @Post(':id/like')

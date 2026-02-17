@@ -10,13 +10,11 @@ import { formatDistanceToNow } from "date-fns";
 
 // Helper to remove markdown images from text
 const stripImageMarkdown = (text: string) => {
-  // Handle various markdown image formats and raw data URIs
   return text
-    .replace(/!\[.*?\]\s*\(.*?\)/g, "") // Standard markdown (removed dotAll s flag)
-    .replace(/!?\[Image\]/g, "") // Legacy markers [Image] or ![Image]
-    .replace(/\(data:.*?(\)|$)/g, "") // Any data URI (removed dotAll s flag)
-    .replace(/<figure[^>]*>.*?<\/figure>/gs, "") // HTML figure blocks
-    .replace(/<img[^>]*>/g, "") // HTML img tags
+    .replace(/!\[.*?\]\s*\(.*?\)/g, "") // Remove Markdown images
+    .replace(/<[^>]*>/g, "") // Remove ALL HTML tags
+    .replace(/&nbsp;/g, " ") // Replace non-breaking spaces
+    .replace(/\s+/g, " ") // Collapse multiple spaces
     .trim();
 };
 

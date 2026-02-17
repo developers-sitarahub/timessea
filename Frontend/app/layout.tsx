@@ -27,7 +27,7 @@ export const viewport: Viewport = {
   ],
 };
 
-import { Toaster } from "@/components/toaster";
+
 
 export default function RootLayout({
   children,

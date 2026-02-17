@@ -15,8 +15,12 @@ import {
   MessageCircle,
   BarChart3,
   Loader2,
-  ChevronLeft
+  ChevronLeft,
+  Trash2,
+  X,
+  AlertTriangle,
 } from "lucide-react";
+import { toast } from "react-toastify";
 import { Skeleton } from "@/components/skeleton";
 import { motion } from "framer-motion";
 import { formatDistanceToNow } from "date-fns";
@@ -46,6 +50,25 @@ export default function PublishedArticlesPage() {
   const router = useRouter();
   const [articles, setArticles] = useState<Article[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const fetchArticles = async () => {
+    if (!user || !token) return;
+    try {
+      const res = await fetch(`${API_URL}/api/articles/user/published`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      setArticles(data);
+    } catch (err) {
+      console.error("Error fetching published articles:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -54,22 +77,56 @@ export default function PublishedArticlesPage() {
     }
 
     if (user && token) {
-      fetch(`${API_URL}/api/articles/user/published`, {
+      fetchArticles();
+    }
+  }, [user, token, authLoading, router]);
+
+  useEffect(() => {
+    if (deletingId) {
+      document.body.classList.add("toast-overlay-active");
+    } else {
+      document.body.classList.remove("toast-overlay-active");
+    }
+    return () => document.body.classList.remove("toast-overlay-active");
+  }, [deletingId]);
+
+  const confirmDelete = async () => {
+    if (!deletingId || !token) return;
+    setIsDeleting(true);
+    
+    try {
+      // Optimistic update
+      const idToHide = deletingId;
+      setArticles(prev => prev.filter(article => article.id !== idToHide));
+      
+      const res = await fetch(`${API_URL}/api/articles/${idToHide}`, {
+        method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
-      })
-        .then((res) => res.json())
-        .then((data) => {
-          setArticles(data);
-          setLoading(false);
-        })
-        .catch((err) => {
-          console.error("Error fetching published articles:", err);
-          setLoading(false);
-        });
+      });
+
+      if (res.ok) {
+        toast.success("Story deleted successfully");
+      } else {
+        toast.error("Failed to delete article");
+        fetchArticles(); // Revert
+      }
+    } catch (err) {
+      console.error("Error deleting article:", err);
+      toast.error("An error occurred");
+      fetchArticles(); // Revert
+    } finally {
+      setIsDeleting(false);
+      setDeletingId(null);
     }
-  }, [user, token, authLoading, router]);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDeletingId(id);
+  };
 
   if (authLoading || loading) {
     return (
@@ -205,8 +262,16 @@ export default function PublishedArticlesPage() {
                           <span>{article.commentCount}</span>
                         </div>
                       </div>
-                      <div className="rounded-full bg-secondary p-1.5 group-hover:bg-primary group-hover:text-primary-foreground transition-all">
-                        <BarChart3 className="h-3.5 w-3.5" />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={(e) => handleDeleteClick(e, article.id)}
+                          className="rounded-full bg-secondary p-1.5 text-muted-foreground/60 hover:bg-destructive hover:text-white transition-all hover:scale-110"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                        <div className="rounded-full bg-secondary p-1.5 group-hover:bg-primary group-hover:text-primary-foreground transition-all">
+                          <BarChart3 className="h-3.5 w-3.5" />
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -216,6 +281,43 @@ export default function PublishedArticlesPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deletingId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-sm rounded-[32px] bg-card border border-border/50 shadow-2xl overflow-hidden p-6 text-center relative"
+          >
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/10 text-destructive rotate-3">
+              <AlertTriangle className="h-8 w-8" />
+            </div>
+            
+            <h3 className="text-xl font-black text-foreground font-serif mb-2">Delete Story?</h3>
+            <p className="text-sm text-muted-foreground font-medium leading-relaxed mb-6">
+              This will remove the story from public view and reduce its stats from your total analytics. This action is permanent.
+            </p>
+
+            <div className="flex flex-col gap-3">
+              <button
+                disabled={isDeleting}
+                onClick={confirmDelete}
+                className="w-full rounded-xl bg-destructive py-3 text-sm font-bold text-white shadow-lg shadow-destructive/20 hover:bg-destructive/90 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Yes, Delete Story"}
+              </button>
+              <button
+                disabled={isDeleting}
+                onClick={() => setDeletingId(null)}
+                className="w-full rounded-xl py-3 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </AppShell>
   );
 }

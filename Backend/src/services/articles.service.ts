@@ -128,6 +128,7 @@ export class ArticlesService {
   ): Promise<any[]> {
     const where: Prisma.ArticleWhereInput = {
       published: true,
+      deletedAt: null,
     };
 
     if (hasMedia) {
@@ -558,8 +559,27 @@ export class ArticlesService {
     return this.prisma.article.update({ where: { id }, data });
   }
 
-  remove(id: string): Promise<Article> {
-    return this.prisma.article.delete({ where: { id } });
+  async remove(id: string, userId: string): Promise<Article> {
+    const article = await this.prisma.article.findUnique({
+      where: { id },
+      select: { authorId: true },
+    });
+
+    if (!article) {
+      throw new Error('Article not found');
+    }
+
+    if (article.authorId !== userId) {
+      throw new Error('You are not authorized to delete this article');
+    }
+
+    return this.prisma.article.update({
+      where: { id },
+      data: { 
+        deletedAt: new Date(),
+        published: false // Also unpublish it from public feed
+      },
+    });
   }
 
   async toggleLike(id: string, userId: string): Promise<Article> {

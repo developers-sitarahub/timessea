@@ -7,7 +7,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useAuth } from "@/contexts/AuthContext";
-import { toast } from "sonner";
+import { toast } from "react-toastify";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -162,17 +162,9 @@ const CommentItem = ({
             {currentUserId === comment.author.id && (
               <button
                 onClick={() => {
-                  toast("Delete Comment", {
-                    description: "Are you sure you want to delete this comment and its replies?",
-                    action: {
-                      label: "Delete",
-                      onClick: () => onDelete(comment.id),
-                    },
-                    cancel: {
-                      label: "Cancel",
-                      onClick: () => {},
-                    },
-                  });
+                  if (window.confirm("Are you sure you want to delete this comment and its replies?")) {
+                    onDelete(comment.id);
+                  }
                 }}
                 className="text-xs font-semibold text-muted-foreground/60 hover:text-destructive transition-colors flex items-center gap-1"
               >

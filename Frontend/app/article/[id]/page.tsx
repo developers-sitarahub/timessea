@@ -20,8 +20,10 @@ import {
   X,
   User,
   TrendingUp,
+  AlertTriangle,
 } from "lucide-react";
 import { motion } from "framer-motion";
+import { toast } from "react-toastify";
 import type { Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
@@ -165,20 +167,8 @@ function CommentItem({
             </button>
             {currentUserId === comment.author.id && (
               <button
-                onClick={() => {
-                  toast("Delete Comment", {
-                    description: "Are you sure you want to delete this comment and its replies?",
-                    action: {
-                      label: "Delete",
-                      onClick: () => onDelete(comment.id),
-                    },
-                    cancel: {
-                      label: "Cancel",
-                      onClick: () => {},
-                    },
-                  });
-                }}
-                className="text-[11px] font-semibold text-muted-foreground/60 hover:text-destructive transition-colors flex items-center gap-1"
+                onClick={() => onDelete(comment.id)}
+                className="text-[11px] font-semibold text-muted-foreground/30 hover:text-destructive transition-all flex items-center gap-1 opacity-0 group-hover:opacity-100"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>Delete</span>
@@ -288,6 +278,8 @@ export default function ArticlePage({
   const [hasMoreRelated, setHasMoreRelated] = useState(true);
   const [hasMoreTrending, setHasMoreTrending] = useState(true);
   const [trendingVisibleCount, setTrendingVisibleCount] = useState(4);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [isDeletingComment, setIsDeletingComment] = useState(false);
 
   // Delayed read counting (1 minute threshold for "read")
   useEffect(() => {
@@ -307,6 +299,15 @@ export default function ArticlePage({
 
     return () => clearTimeout(timer);
   }, [id]);
+
+  useEffect(() => {
+    if (deletingCommentId) {
+      document.body.classList.add("toast-overlay-active");
+    } else {
+      document.body.classList.remove("toast-overlay-active");
+    }
+    return () => document.body.classList.remove("toast-overlay-active");
+  }, [deletingCommentId]);
 
   // Fetch article
   useEffect(() => {
@@ -592,22 +593,46 @@ export default function ArticlePage({
     }
   };
 
-  // Delete a comment
-  const handleDeleteComment = async (commentId: string) => {
-    if (!token) return;
+  // Delete a comment trigger
+  const handleDeleteComment = (commentId: string) => {
+    setDeletingCommentId(commentId);
+  };
+
+  const confirmDeleteComment = async () => {
+    if (!token || !deletingCommentId) return;
+    setIsDeletingComment(true);
+
     try {
-      const res = await fetch(`${API_URL}/api/comments/${commentId}`, {
+      const res = await fetch(`${API_URL}/api/comments/${deletingCommentId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
+
       if (res.ok) {
-        // Optimistic update locally to avoid waiting for fetch for better UX
+        // Optimistic update locally
+        const idToDelete = deletingCommentId;
+        
+        // Count how many we are deleting for the header count
+        let deletedTotal = 0;
+        const countDeleted = (list: CommentType[]) => {
+          list.forEach(c => {
+            if (c.id === idToDelete) {
+              const getDeepCount = (comment: CommentType): number => 
+                1 + (comment.replies?.reduce((acc, r) => acc + getDeepCount(r), 0) || 0);
+              deletedTotal = getDeepCount(c);
+            } else if (c.replies) {
+              countDeleted(c.replies);
+            }
+          });
+        };
+        countDeleted(comments);
+
         setComments((prev) => {
           const removeRec = (list: CommentType[]): CommentType[] => {
             return list
-              .filter((c) => c.id !== commentId)
+              .filter((c) => c.id !== idToDelete)
               .map((c) => ({
                 ...c,
                 replies: c.replies ? removeRec(c.replies) : [],
@@ -615,14 +640,18 @@ export default function ArticlePage({
           };
           return removeRec(prev);
         });
-        await fetchComments();
+
+        setCommentCount(prev => Math.max(0, prev - deletedTotal));
         toast.success("Comment and its replies deleted successfully");
       } else {
         toast.error("Failed to delete comment");
       }
     } catch (e) {
       console.error("Failed to delete comment", e);
-      toast.error("An error occurred while deleting the comment");
+      toast.error("An error occurred");
+    } finally {
+      setIsDeletingComment(false);
+      setDeletingCommentId(null);
     }
   };
 
@@ -798,6 +827,10 @@ export default function ArticlePage({
     }
   };
 
+  const filteredTrending = trendingArticles.filter(
+    (t) => !relatedArticles.some((r) => r.id === t.id),
+  );
+
   return (
     <AppShell>
       {/* Share Toast */}
@@ -933,63 +966,107 @@ export default function ArticlePage({
         </div>
 
         {/* ── Section 6: COVER IMAGE with Caption ── */}
-        <figure className="mb-6 -mx-5">
-          <div
-            className={cn(
-              "w-full overflow-hidden bg-secondary relative",
-              !article.image && "aspect-video",
-            )}
-          >
+        <figure className="mb-10 -mx-5 bg-secondary/5">
+          <div className="w-full overflow-hidden bg-secondary relative aspect-[16/10] sm:aspect-[21/9]">
             {article.image ? (
               <img
                 src={article.image}
                 alt={article.imageCaption || article.title}
-                className="w-full h-auto"
+                className="w-full h-full object-cover"
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-secondary to-muted">
-                <div
-                  className="text-7xl font-black text-foreground/5 select-none"
-                  style={{ fontFamily: "'Georgia', serif" }}
-                >
+                <div className="text-7xl font-black text-foreground/5 select-none font-serif">
                   {article.title.charAt(0)}
                 </div>
               </div>
             )}
           </div>
           {/* Image Caption — The Hindu style */}
-          <figcaption className="px-5 pt-2 pb-0">
-            {article.imageDescription || article.imageCaption ? (
-              <p className="text-[12px] leading-relaxed text-muted-foreground italic">
-                {article.imageDescription || article.imageCaption}
-                {article.imageCredit && (
-                  <span className="text-muted-foreground/70 not-italic">
-                    {" "}
-                    | Photo Credit: {article.imageCredit}
+          <figcaption className="mt-4 px-5">
+            <div className="text-[12px] leading-relaxed text-muted-foreground flex items-center flex-wrap gap-x-2.5">
+              {(article.imageDescription || article.imageCaption) && (
+                <>
+                  <span className="font-semibold text-foreground/80 lowercase first-letter:uppercase">
+                    {article.imageDescription || article.imageCaption}
                   </span>
-                )}
-              </p>
-            ) : (
-              <p className="text-[12px] leading-relaxed text-muted-foreground italic">
-                {article.title}
-                <span className="text-muted-foreground/70 not-italic">
-                  {" "}
-                  {/* | Photo: Special Arrangement */}
+                  <span className="text-border/80 font-light px-1">|</span>
+                </>
+              )}
+              <div className="flex items-center gap-1.5">
+                <span className="font-black text-muted-foreground/40 uppercase text-[9px] tracking-[0.2em] shrink-0">
+                  PHOTO:
                 </span>
-              </p>
-            )}
+                <span className="font-semibold text-muted-foreground shrink-0">
+                  {article.imageCredit || article.author?.name || "Special Arrangement"}
+                </span>
+              </div>
+            </div>
           </figcaption>
         </figure>
 
         {/* ── Section 7: ARTICLE BODY ── */}
-        <article className="space-y-5 px-1">
+        <article className="space-y-6 px-1">
           <div
-            className="prose prose-lg dark:prose-invert max-w-none font-serif leading-relaxed prose-img:rounded-xl prose-img:w-full prose-headings:font-black prose-a:text-primary prose-blockquote:border-l-4 prose-blockquote:border-red-600 dark:prose-blockquote:border-red-400 prose-blockquote:bg-secondary/10 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:not-italic prose-figcaption:font-sans prose-figcaption:text-[12px] prose-figcaption:text-muted-foreground prose-figcaption:mt-2 prose-figcaption:leading-relaxed"
+            className="prose prose-lg dark:prose-invert max-w-none font-serif leading-relaxed prose-img:rounded-xl prose-img:w-full prose-headings:font-black prose-a:text-primary prose-blockquote:border-l-4 prose-blockquote:border-red-600 dark:prose-blockquote:border-red-400 prose-blockquote:bg-secondary/10 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:not-italic"
             dangerouslySetInnerHTML={{
-              __html: article.content.replace(
-                /!\[(.*?)\]\((.+?)\)/g,
-                '<figure class="my-8"><img src="$2" alt="$1" class="rounded-lg w-full"/><figcaption class="text-center text-sm text-muted-foreground mt-2 italic">$1</figcaption></figure>',
-              ),
+              __html: article.content
+                .replace(
+                  /!\[(.*?)\]\((.*?)(\s+"(.*?)")?\)/g,
+                  (_match, alt, url, _space, title) => {
+                    const parts = alt.split("|");
+                    let desc = (parts[0]?.trim() || "").replace(/^image$/i, "");
+                    // Fallback to title if alt is empty or generic
+                    if (!desc && title) desc = title;
+                    
+                    const credit = parts[1]?.trim() || article.author?.name || "Special Arrangement";
+                    const cleanUrl = url.trim();
+
+                    return `
+                      <figure class="my-12 mx-auto max-w-[90%] sm:max-w-[700px]">
+                        <div class="w-full overflow-hidden rounded-2xl bg-secondary/30 shadow-sm border border-border/10">
+                          <img src="${cleanUrl}" alt="${desc}" class="w-full h-auto"/>
+                        </div>
+                        <figcaption class="pt-4 px-1 text-[12px] leading-relaxed text-muted-foreground flex items-center flex-wrap gap-x-2.5">
+                          ${
+                            desc
+                              ? `<span class="font-semibold text-foreground/80 lowercase first-letter:uppercase">${desc}</span> <span class="text-border/80 font-light px-1">|</span>`
+                              : ""
+                          }
+                          <div class="flex items-center gap-1.5">
+                            <span class="font-black text-muted-foreground/40 uppercase text-[9px] tracking-[0.2em] shrink-0">PHOTO:</span>
+                            <span class="font-semibold text-muted-foreground shrink-0">${credit}</span>
+                          </div>
+                        </figcaption>
+                      </figure>
+                    `;
+                  },
+                )
+                .replace(
+                  /<img.*?src="(.*?)".*?alt="(.*?)".*?>/g,
+                  (_match, url, alt) => {
+                    const cleanAlt = (alt?.trim() || "").replace(/^image$/i, "");
+                    const credit = article.author?.name || "Special Arrangement";
+                    return `
+                      <figure class="my-12 mx-auto max-w-[90%] sm:max-w-[700px]">
+                        <div class="w-full overflow-hidden rounded-2xl bg-secondary/30 shadow-sm border border-border/10">
+                          <img src="${url}" alt="${cleanAlt}" class="w-full h-auto"/>
+                        </div>
+                        <figcaption class="pt-4 px-1 text-[12px] leading-relaxed text-muted-foreground flex items-center flex-wrap gap-x-2.5">
+                          ${
+                            cleanAlt
+                              ? `<span class="font-semibold text-foreground/80 lowercase first-letter:uppercase">${cleanAlt}</span> <span class="text-border/80 font-light px-1">|</span>`
+                              : ""
+                          }
+                          <div class="flex items-center gap-1.5">
+                            <span class="font-black text-muted-foreground/40 uppercase text-[9px] tracking-[0.2em] shrink-0">PHOTO:</span>
+                            <span class="font-semibold text-muted-foreground shrink-0">${credit}</span>
+                          </div>
+                        </figcaption>
+                      </figure>
+                    `;
+                  },
+                ),
             }}
           />
         </article>
@@ -1219,44 +1296,38 @@ export default function ArticlePage({
               )}
 
               {/* TRENDING SECTION */}
-              {(() => {
-                const filteredTrending = trendingArticles.filter(
-                  (t) => !relatedArticles.some((r) => r.id === t.id),
-                );
-                if (filteredTrending.length === 0) return null;
-                return (
-                  <div className="pt-8 border-t border-border/40">
-                    <h4 className="text-[18px] font-black tracking-tight text-foreground mb-8 flex items-center gap-2 font-serif">
-                      <span className="w-1.5 h-6 bg-primary rounded-full" />
-                      Trending News
-                    </h4>
-                    <div className="flex flex-col gap-4">
-                      {filteredTrending
-                        .slice(0, trendingVisibleCount)
-                        .map((article) => (
-                          <div
-                            key={article.id}
-                            className="bg-card/30 rounded-2xl p-2 hover:bg-secondary/20 transition-colors"
-                          >
-                            <ArticleCardHorizontal article={article} />
-                          </div>
-                        ))}
-                    </div>
-                    {(hasMoreTrending ||
-                      filteredTrending.length > trendingVisibleCount) &&
-                      trendingVisibleCount >= 4 && (
-                        <div className="text-center pt-8">
-                          <button
-                            onClick={loadMoreTrending}
-                            className="px-6 py-2.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-sm font-bold transition-all shadow-sm"
-                          >
-                            Load More Trending News
-                          </button>
+              {filteredTrending.length > 0 && (
+                <div className="pt-8 border-t border-border/40">
+                  <h4 className="text-[18px] font-black tracking-tight text-foreground mb-8 flex items-center gap-2 font-serif">
+                    <span className="w-1.5 h-6 bg-primary rounded-full" />
+                    Trending News
+                  </h4>
+                  <div className="flex flex-col gap-4">
+                    {filteredTrending
+                      .slice(0, trendingVisibleCount)
+                      .map((article: Article) => (
+                        <div
+                          key={article.id}
+                          className="bg-card/30 rounded-2xl p-2 hover:bg-secondary/20 transition-colors"
+                        >
+                          <ArticleCardHorizontal article={article} />
                         </div>
-                      )}
+                      ))}
                   </div>
-                );
-              })()}
+                  {(hasMoreTrending ||
+                    filteredTrending.length > trendingVisibleCount) &&
+                    trendingVisibleCount >= 4 && (
+                      <div className="text-center pt-8">
+                        <button
+                          onClick={loadMoreTrending}
+                          className="px-6 py-2.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-sm font-bold transition-all shadow-sm"
+                        >
+                          Load More Trending News
+                        </button>
+                      </div>
+                    )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1267,6 +1338,43 @@ export default function ArticlePage({
         onClose={() => setShowAuthModal(false)}
         onLogin={() => router.push(`/login?redirect=/article/${id}`)}
       />
+
+      {/* Comment Delete Confirmation Modal */}
+      {deletingCommentId && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="w-full max-w-sm rounded-[32px] bg-card border border-border/50 shadow-2xl overflow-hidden p-6 text-center relative"
+          >
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/10 text-destructive rotate-3">
+              <AlertTriangle className="h-8 w-8" />
+            </div>
+            
+            <h3 className="text-xl font-black text-foreground font-serif mb-2">Delete Comment?</h3>
+            <p className="text-sm text-muted-foreground font-medium leading-relaxed mb-6">
+              Are you sure you want to delete this comment? All replies will also be removed.
+            </p>
+
+            <div className="flex flex-col gap-3">
+              <button
+                disabled={isDeletingComment}
+                onClick={confirmDeleteComment}
+                className="w-full rounded-xl bg-destructive py-3 text-sm font-bold text-white shadow-lg shadow-destructive/20 hover:bg-destructive/90 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              >
+                {isDeletingComment ? <Loader2 className="h-4 w-4 animate-spin" /> : "Yes, Delete Comment"}
+              </button>
+              <button
+                disabled={isDeletingComment}
+                onClick={() => setDeletingCommentId(null)}
+                className="w-full rounded-xl py-3 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </AppShell>
   );
 }
@@ -1324,3 +1432,4 @@ function AuthPromptModal({
     </div>
   );
 }
+
