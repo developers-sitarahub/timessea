@@ -26,6 +26,7 @@ import {
   Clock,
   Trash2,
   Edit,
+  MapPin,
 } from "lucide-react";
 import { categories, Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ function EditorContent() {
   const [activeBlockId, setActiveBlockId] = useState<string>(blocks[0].id);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isPreview, setIsPreview] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"cards" | "article">("cards");
   const [published, setPublished] = useState(false);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
@@ -707,7 +709,10 @@ function EditorContent() {
               disabled={
                 !title.trim() || !subheadline.trim() || !fullContent.trim()
               }
-              onClick={() => setIsPreview(true)}
+              onClick={() => {
+                setIsPreview(true);
+                setPreviewMode("cards");
+              }}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-background shadow-md transition-all",
                 !title.trim() || !subheadline.trim() || !fullContent.trim()
@@ -950,102 +955,241 @@ function EditorContent() {
               transition={{ duration: 0.2 }}
               className="space-y-6 rounded-3xl bg-card p-6 shadow-sm border border-border/50"
             >
-              <h1 className="text-3xl font-black leading-tight tracking-tight text-foreground font-serif text-balance">
-                {title || "Untitled Article"}
-              </h1>
-
-              <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden text-[10px] font-bold text-primary">
-                    {user?.picture ? (
-                      <img
-                        src={user.picture}
-                        alt={user.name}
-                        className="h-full w-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      user?.name?.charAt(0) || "A"
-                    )}
+              {previewMode === "cards" ? (
+                /* ─── CARDS VIEW ─── */
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between border-b border-border/50 pb-4">
+                    <h2 className="text-2xl font-black font-serif text-foreground">
+                      Home Feed Preview
+                    </h2>
+                    <span className="text-xs font-medium text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md">
+                      Click any card to view article
+                    </span>
                   </div>
-                  <span className="text-foreground">
-                    {user?.name || "Anonymous"}
-                  </span>
+
+                  <div className="grid gap-8">
+                    {/* Featured Card Wrapper */}
+                    <div
+                      className="space-y-3 cursor-pointer group"
+                      onClickCapture={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPreviewMode("article");
+                      }}
+                    >
+                      <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider group-hover:text-primary transition-colors flex items-center gap-2">
+                        Featured Card{" "}
+                        <span className="text-[10px] opacity-50 normal-case">
+                          (Click to Preview)
+                        </span>
+                      </h3>
+                      <div className="max-w-2xl border border-dashed border-border/50 p-6 rounded-2xl bg-secondary/10 group-hover:border-primary/30 group-hover:bg-secondary/20 transition-all">
+                        <div className="pointer-events-none">
+                          <ArticleCardFeatured article={previewArticle} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Standard Card Wrapper */}
+                    <div
+                      className="space-y-3 cursor-pointer group"
+                      onClickCapture={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPreviewMode("article");
+                      }}
+                    >
+                      <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider group-hover:text-primary transition-colors flex items-center gap-2">
+                        Standard Card{" "}
+                        <span className="text-[10px] opacity-50 normal-case">
+                          (Click to Preview)
+                        </span>
+                      </h3>
+                      <div className="max-w-2xl border border-dashed border-border/50 p-6 rounded-2xl bg-secondary/10 group-hover:border-primary/30 group-hover:bg-secondary/20 transition-all">
+                        <div className="pointer-events-none">
+                          <ArticleCardHorizontal article={previewArticle} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-border">|</span>
-                <span>Just now</span>
-                <span className="text-border">|</span>
-                <span className="flex items-center gap-1">
-                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />
-                  {readTime} min read
-                </span>
-              </div>
+              ) : (
+                /* ─── ARTICLE VIEW ─── */
+                <div className="space-y-6">
+                  <button
+                    onClick={() => setPreviewMode("cards")}
+                    className="flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors mb-4 px-3 py-1.5 rounded-full hover:bg-secondary/50 w-fit"
+                  >
+                    <ArrowLeft className="w-4 h-4" /> Back to Cards
+                  </button>
 
-              {selectedCategory && (
-                <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary ring-1 ring-inset ring-primary/20">
-                  {selectedCategory}
-                </span>
-              )}
+                  {/* ── Section 1: Category Badge ── */}
+                  <div className="mb-3 px-1 mt-4">
+                    <span className="inline-block text-[11px] font-black tracking-[0.2em] text-red-600 dark:text-red-400 uppercase border-b-2 border-red-600 dark:border-red-400 pb-0.5">
+                      {selectedCategory || "NEWS"}
+                    </span>
+                  </div>
 
-              <div className="h-px w-full bg-border/50" />
+                  {/* ── Section 2: HEADING (Title) ── */}
+                  <h1
+                    className="mb-3 text-[26px] sm:text-[32px] font-black leading-[1.15] tracking-tight text-foreground px-1"
+                    style={{
+                      fontFamily: "'Georgia', 'Times New Roman', serif",
+                    }}
+                  >
+                    {title || "Untitled Article"}
+                  </h1>
 
-              <article className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-                {blocks.length > 0 ? (
-                  blocks.map((block) => {
-                    if (block.type === "image") {
-                      return (
-                        <motion.div
-                          key={block.id}
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="my-6 overflow-hidden rounded-xl"
-                        >
+                  {/* ── Section 3: SUMMARY / Subheadline ── */}
+                  {subheadline && (
+                    <div
+                      className="mb-5 text-[15px] sm:text-[17px] leading-relaxed text-foreground/70 px-1"
+                      style={{
+                        fontFamily: "'Georgia', 'Times New Roman', serif",
+                      }}
+                      dangerouslySetInnerHTML={{
+                        __html: subheadline.replace(/<[^>]*>/g, ""),
+                      }}
+                    />
+                  )}
+
+                  {/* ── Section 4: Author Row + Metadata ── */}
+                  <div className="mb-5 px-1">
+                    {/* Author Info */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="h-10 w-10 overflow-hidden rounded-full ring-2 ring-border/50 shrink-0">
+                        {user?.picture ? (
                           <img
-                            src={block.content}
-                            alt="Article Image"
-                            className="w-full object-cover"
+                            src={user.picture}
+                            alt={user.name}
+                            className="h-full w-full object-cover"
+                            referrerPolicy="no-referrer"
                           />
-                        </motion.div>
-                      );
-                    }
-                    return (
-                      <div
-                        key={block.id}
-                        className="mb-4 prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed"
-                        dangerouslySetInnerHTML={{ __html: block.content }}
-                      />
-                    );
-                  })
-                ) : (
-                  <p className="italic text-muted-foreground/50">
-                    No content to preview...
-                  </p>
-                )}
-              </article>
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-linear-to-br from-primary/20 to-primary/5 font-bold text-primary text-sm">
+                            {user?.name?.charAt(0) || "A"}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
+                          WRITTEN BY
+                        </p>
+                        <h3 className="font-bold text-foreground text-sm leading-tight">
+                          {user?.name || "Anonymous"}
+                        </h3>
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
+                          {location && (
+                            <>
+                              <MapPin className="w-3 h-3" strokeWidth={2} />
+                              <span className="font-semibold uppercase tracking-wide">
+                                {location}
+                              </span>
+                              <span className="text-border">•</span>
+                            </>
+                          )}
+                          <span>Just now</span>
+                        </div>
+                      </div>
+                      <button
+                        className="rounded-full px-4 py-1.5 text-[11px] font-bold text-primary ring-1 ring-primary/30 hover:bg-primary/5 transition-colors shrink-0"
+                        disabled
+                      >
+                        Follow
+                      </button>
+                    </div>
 
-              <div className="mt-12 pt-8 border-t border-border/50">
-                <h2 className="text-xl font-bold font-serif mb-6">
-                  Home Feed Preview
-                </h2>
-                <div className="grid gap-8">
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      Featured Card
-                    </h3>
-                    <div className="max-w-2xl border border-dashed border-border/50 p-6 rounded-2xl bg-secondary/10">
-                      <ArticleCardFeatured article={previewArticle} />
+                    {/* ── Metadata Bar ── */}
+                    <div className="flex items-center gap-3 py-2.5 border-y border-border/40 text-[12px] text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        {readTime} min read
+                      </span>
+                      <span className="text-border">|</span>
+                      <span>Updated Just now</span>
                     </div>
                   </div>
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      Standard Card
-                    </h3>
-                    <div className="max-w-2xl border border-dashed border-border/50 p-6 rounded-2xl bg-secondary/10">
-                      <ArticleCardHorizontal article={previewArticle} />
+
+                  {/* ── Section 6: COVER IMAGE with Caption ── */}
+                  {(imageUrl || blocks.find((b) => b.type === "image")) && (
+                    <figure className="mb-6 -mx-5">
+                      <div className="w-full overflow-hidden bg-secondary relative">
+                        <img
+                          src={
+                            imageUrl ||
+                            blocks.find((b) => b.type === "image")?.content ||
+                            ""
+                          }
+                          alt="Cover"
+                          className="w-full h-auto"
+                        />
+                      </div>
+                      <figcaption className="px-5 pt-2 pb-0">
+                        {imageDescription ? (
+                          <div
+                            className="text-[12px] leading-relaxed text-muted-foreground italic"
+                            dangerouslySetInnerHTML={{
+                              __html: imageDescription,
+                            }}
+                          />
+                        ) : (
+                          <p className="text-[12px] leading-relaxed text-muted-foreground italic">
+                            {title}
+                          </p>
+                        )}
+                      </figcaption>
+                    </figure>
+                  )}
+
+                  {/* ── Section 7: ARTICLE BODY ── */}
+                  <article className="space-y-5 px-1">
+                    <div className="prose prose-lg dark:prose-invert max-w-none font-serif leading-relaxed prose-img:rounded-xl prose-img:w-full prose-headings:font-black prose-a:text-primary prose-blockquote:border-l-4 prose-blockquote:border-red-600 dark:prose-blockquote:border-red-400 prose-blockquote:bg-secondary/10 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:not-italic prose-figcaption:font-sans prose-figcaption:text-[12px] prose-figcaption:text-muted-foreground prose-figcaption:mt-2 prose-figcaption:leading-relaxed">
+                      {blocks.length > 0 ? (
+                        blocks.map((block) => {
+                          if (
+                            block.type === "image" &&
+                            block.content !== imageUrl
+                          ) {
+                            // Don't repeat the cover image if it's also a block simply by URL check (simplistic)
+                            return (
+                              <figure key={block.id} className="my-8">
+                                <img
+                                  src={block.content}
+                                  alt={block.caption || "Article Image"}
+                                  className="rounded-lg w-full"
+                                />
+                                {block.caption && (
+                                  <figcaption
+                                    className="text-center text-sm text-muted-foreground mt-2 italic"
+                                    dangerouslySetInnerHTML={{
+                                      __html: block.caption,
+                                    }}
+                                  />
+                                )}
+                              </figure>
+                            );
+                          }
+                          if (block.type === "text") {
+                            return (
+                              <div
+                                key={block.id}
+                                dangerouslySetInnerHTML={{
+                                  __html: block.content,
+                                }}
+                              />
+                            );
+                          }
+                          return null;
+                        })
+                      ) : (
+                        <p className="italic text-muted-foreground/50">
+                          Start writing to see your preview here...
+                        </p>
+                      )}
                     </div>
-                  </div>
+                  </article>
                 </div>
-              </div>
+              )}
 
               {/* Publish Actions */}
               <div className="flex items-center justify-between border-t border-border pt-6 mt-8">

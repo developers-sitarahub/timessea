@@ -954,121 +954,15 @@ export default function ArticlePage({
 
         {/* ── Section 7: ARTICLE BODY ── */}
         <article className="space-y-5 px-1">
-          {contentSegments.map((segment, index) => {
-            // ── Image segment: render as figure ──
-            if (segment.type === "image") {
-              return (
-                <figure
-                  key={`img-${index}`}
-                  className="my-6 mx-auto"
-                  style={{ maxWidth: "85%" }}
-                >
-                  <div className="overflow-hidden rounded-md border border-border/30 shadow-sm">
-                    <img
-                      src={segment.src}
-                      alt={segment.alt}
-                      className="w-full h-auto object-cover"
-                    />
-                  </div>
-                  {segment.alt &&
-                    segment.alt !== "Image" &&
-                    segment.alt !== "Article Image" && (
-                      <figcaption className="mt-1.5 text-[11px] text-muted-foreground text-center leading-relaxed italic">
-                        {segment.alt}
-                      </figcaption>
-                    )}
-                </figure>
-              );
-            }
-
-            // ── Text segment: split into paragraphs ──
-            const textParagraphs = segment.text
-              .split("\n\n")
-              .filter((p) => p.trim());
-            return textParagraphs.map((paragraph, pIdx) => {
-              const globalKey = `${index}-${pIdx}`;
-
-              // Skip empty paragraphs
-              if (!paragraph.trim()) return null;
-
-              // Bold section headings
-              if (paragraph.startsWith("**") && paragraph.endsWith("**")) {
-                const text = paragraph.replace(/\*\*/g, "");
-                return (
-                  <h2
-                    key={globalKey}
-                    className="text-lg font-black text-foreground pt-3 pb-1 tracking-tight"
-                    style={{
-                      fontFamily: "'Georgia', 'Times New Roman', serif",
-                    }}
-                  >
-                    {text}
-                  </h2>
-                );
-              }
-
-              // Markdown headings
-              if (paragraph.startsWith("##")) {
-                const text = paragraph.replace(/^##\s*/, "");
-                return (
-                  <h2
-                    key={globalKey}
-                    className="text-xl font-black text-foreground pt-5 pb-1.5 tracking-tight"
-                    style={{
-                      fontFamily: "'Georgia', 'Times New Roman', serif",
-                    }}
-                  >
-                    {text}
-                  </h2>
-                );
-              }
-
-              // Blockquotes — The Hindu editorial style
-              if (paragraph.startsWith(">")) {
-                const text = paragraph.replace(/^>\s*/, "");
-                return (
-                  <blockquote
-                    key={globalKey}
-                    className="border-l-3 border-red-600 dark:border-red-400 pl-4 py-2 my-5 text-[17px] font-medium text-foreground/85 leading-relaxed"
-                    style={{
-                      fontFamily: "'Georgia', 'Times New Roman', serif",
-                    }}
-                  >
-                    <span className="italic">&ldquo;{text}&rdquo;</span>
-                  </blockquote>
-                );
-              }
-
-              // Regular paragraphs — The Hindu body text style
-              // Clean any leftover image remnants from text
-              const cleanedParagraph = stripImageMarkdown(paragraph);
-              if (!cleanedParagraph.trim()) return null;
-
-              const parts = cleanedParagraph.split(/(\*\*[^*]+\*\*)/);
-              // Determine if this is the very first text paragraph
-              const isFirstTextParagraph = index === 0 && pIdx === 0;
-
-              return (
-                <p
-                  key={globalKey}
-                  className="text-[16px] sm:text-[17px] leading-[1.85] text-foreground/85 tracking-[0.01em]"
-                  style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                >
-                  {/* First paragraph: dateline style with location */}
-                  {parts.map((part, i) => {
-                    if (part.startsWith("**") && part.endsWith("**")) {
-                      return (
-                        <strong key={i} className="font-bold text-foreground">
-                          {part.replace(/\*\*/g, "")}
-                        </strong>
-                      );
-                    }
-                    return <span key={i}>{part}</span>;
-                  })}
-                </p>
-              );
-            });
-          })}
+          <div
+            className="prose prose-lg dark:prose-invert max-w-none font-serif leading-relaxed prose-img:rounded-xl prose-img:w-full prose-headings:font-black prose-a:text-primary prose-blockquote:border-l-4 prose-blockquote:border-red-600 dark:prose-blockquote:border-red-400 prose-blockquote:bg-secondary/10 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:not-italic prose-figcaption:font-sans prose-figcaption:text-[12px] prose-figcaption:text-muted-foreground prose-figcaption:mt-2 prose-figcaption:leading-relaxed"
+            dangerouslySetInnerHTML={{
+              __html: article.content.replace(
+                /!\[(.*?)\]\((.+?)\)/g,
+                '<figure class="my-8"><img src="$2" alt="$1" class="rounded-lg w-full"/><figcaption class="text-center text-sm text-muted-foreground mt-2 italic">$1</figcaption></figure>',
+              ),
+            }}
+          />
         </article>
 
         {/* ── Section 8: Tags ── */}

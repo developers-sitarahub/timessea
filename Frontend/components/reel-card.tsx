@@ -109,13 +109,42 @@ export function ReelCard({
       });
     }
 
-    // 3. Content Images
-    const regex = /!\[(.*?)\]\((.*?)\)/g;
-    let match;
-    while ((match = regex.exec(article.content)) !== null) {
-      const [_, alt, url] = match;
+    // 3. Content Images (Markdown)
+    const mdRegex = /!\[(.*?)\]\((.*?)\)/g;
+    let mdMatch;
+    while ((mdMatch = mdRegex.exec(article.content)) !== null) {
+      const [_, alt, url] = mdMatch;
       if (!media.find((exist) => exist.url === url)) {
         media.push({ type: "image", url, caption: alt });
+      }
+    }
+
+    // 4. Content Images (HTML)
+    const htmlRegex = /<img[^>]+src="([^">]+)"[^>]*>/g;
+    const captionRegex = /<figcaption>(.*?)<\/figcaption>/;
+    const figureRegex = /<figure[^>]*>([\s\S]*?)<\/figure>/g;
+
+    let figureMatch;
+    while ((figureMatch = figureRegex.exec(article.content)) !== null) {
+      const figureContent = figureMatch[1];
+      const imgMatch = /src="([^">]+)"/.exec(figureContent);
+      const capMatch = captionRegex.exec(figureContent);
+
+      if (imgMatch) {
+        const url = imgMatch[1];
+        const caption = capMatch ? capMatch[1] : "";
+        if (!media.find((exist) => exist.url === url)) {
+          media.push({ type: "image", url, caption });
+        }
+      }
+    }
+
+    // Fallback for standalone img tags not in figures
+    let imgMatch;
+    while ((imgMatch = htmlRegex.exec(article.content)) !== null) {
+      const url = imgMatch[1];
+      if (!media.find((exist) => exist.url === url)) {
+        media.push({ type: "image", url, caption: "Image" });
       }
     }
 
@@ -318,6 +347,7 @@ export function ReelCard({
               >
                 {article.content
                   .replace(/!\[.*?\]\(.*?\)/g, "") // Remove markdown images
+                  .replace(/<[^>]*>/g, "") // Remove HTML tags
                   .replace(/\*\*([^*]+)\*\*/g, "$1") // Remove bold syntax
                   .replace(/\n+/g, "\n")
                   .trim()}
