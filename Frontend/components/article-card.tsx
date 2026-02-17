@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { Heart } from "lucide-react";
+import { Heart, MapPin } from "lucide-react";
 import type { Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { analytics, AnalyticsEventType } from "@/lib/analytics";
@@ -331,8 +331,9 @@ export function ArticleCardVertical({ article }: { article: Article }) {
         {/* Footer Metadata */}
         <div className="mt-auto flex items-center justify-between border-t border-border/40 pt-2">
           {article.location && (
-            <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-0.5 truncate max-w-32">
-              📍 {article.location}
+            <span className="text-[10px] font-medium text-muted-foreground flex items-center gap-1 truncate max-w-32">
+              <MapPin className="w-3 h-3 text-primary/70" />
+              {article.location}
             </span>
           )}
           <div className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground bg-secondary/50 px-1.5 py-0.5 rounded-md shrink-0 ml-auto">
