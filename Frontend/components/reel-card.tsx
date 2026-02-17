@@ -92,7 +92,7 @@ export function ReelCard({
       media.push({
         type: "image",
         url: article.image,
-        caption: article.imageCaption || article.title,
+        caption: article.imageDescription || article.imageCaption || undefined,
       });
     } else if (imageSrc) {
       media.push({
@@ -111,13 +111,42 @@ export function ReelCard({
       });
     }
 
-    // 3. Content Images
-    const regex = /!\[(.*?)\]\((.*?)\)/g;
-    let match;
-    while ((match = regex.exec(article.content)) !== null) {
-      const [_, alt, url] = match;
+    // 3. Content Images (Markdown)
+    const mdRegex = /!\[(.*?)\]\((.*?)\)/g;
+    let mdMatch;
+    while ((mdMatch = mdRegex.exec(article.content)) !== null) {
+      const [_, alt, url] = mdMatch;
       if (!media.find((exist) => exist.url === url)) {
         media.push({ type: "image", url, caption: alt });
+      }
+    }
+
+    // 4. Content Images (HTML)
+    const htmlRegex = /<img[^>]+src="([^">]+)"[^>]*>/g;
+    const captionRegex = /<figcaption>(.*?)<\/figcaption>/;
+    const figureRegex = /<figure[^>]*>([\s\S]*?)<\/figure>/g;
+
+    let figureMatch;
+    while ((figureMatch = figureRegex.exec(article.content)) !== null) {
+      const figureContent = figureMatch[1];
+      const imgMatch = /src="([^">]+)"/.exec(figureContent);
+      const capMatch = captionRegex.exec(figureContent);
+
+      if (imgMatch) {
+        const url = imgMatch[1];
+        const caption = capMatch ? capMatch[1] : "";
+        if (!media.find((exist) => exist.url === url)) {
+          media.push({ type: "image", url, caption });
+        }
+      }
+    }
+
+    // Fallback for standalone img tags not in figures
+    let imgMatch;
+    while ((imgMatch = htmlRegex.exec(article.content)) !== null) {
+      const url = imgMatch[1];
+      if (!media.find((exist) => exist.url === url)) {
+        media.push({ type: "image", url, caption: "Image" });
       }
     }
 
@@ -191,12 +220,10 @@ export function ReelCard({
                   {item.caption &&
                     item.caption !== article.title &&
                     item.caption !== "Image" && (
-                      <div className="absolute bottom-[70px] left-0 right-0 flex justify-center px-4 z-20 pointer-events-none">
-                        <div className="max-w-[90%] bg-black/70 backdrop-blur-md border border-white/20 rounded-xl px-4 py-2 shadow-lg animate-in fade-in slide-in-from-bottom-2 duration-300">
-                          <p className="text-white text-sm font-medium text-center leading-snug line-clamp-2 drop-shadow-md">
-                            {item.caption}
-                          </p>
-                        </div>
+                      <div className="absolute bottom-0 left-0 right-0 z-20 pointer-events-none bg-black/10 dark:bg-white/10 backdrop-blur-md border-t border-black/5 dark:border-white/10 px-4 py-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                        <p className="text-white dark:text-white text-sm font-medium text-center leading-relaxed dark:drop-shadow-md">
+                          {item.caption}
+                        </p>
                       </div>
                     )}
                 </div>
@@ -228,7 +255,7 @@ export function ReelCard({
                 </button>
 
                 {/* Dots - Enhanced visibility with vibrant colors */}
-                <div className="absolute bottom-16 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+                <div className="absolute bottom-20 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
                   {combinedMedia.map((_, i) => (
                     <button
                       key={i}
@@ -320,6 +347,7 @@ export function ReelCard({
               >
                 {article.content
                   .replace(/!\[.*?\]\(.*?\)/g, "") // Remove markdown images
+                  .replace(/<[^>]*>/g, "") // Remove HTML tags
                   .replace(/\*\*([^*]+)\*\*/g, "$1") // Remove bold syntax
                   .replace(/\n+/g, "\n")
                   .trim()}
@@ -422,7 +450,7 @@ export function ReelCard({
 
       {/* Swipe hint on first reel */}
       {index === 0 && (
-        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex animate-bounce flex-col items-center gap-0.5 sm:gap-1 text-foreground/40 pointer-events-none z-0">
+        <div className="absolute bottom-28 sm:bottom-32 left-1/2 -translate-x-1/2 flex animate-bounce flex-col items-center gap-0.5 sm:gap-1 text-white/80 pointer-events-none z-30 drop-shadow-md">
           <ChevronUp className="h-5 w-5 sm:h-6 sm:w-6" />
           <span className="text-[10px] sm:text-[11px] font-bold tracking-widest uppercase">
             Swipe Up

@@ -307,7 +307,7 @@ export function ExploreClient({ initialArticles }: ExploreClientProps) {
   return (
     <div
       ref={containerRef}
-      className="h-dvh snap-y snap-mandatory overflow-y-scroll scrollbar-hide"
+      className="h-dvh snap-y snap-mandatory overflow-y-scroll scrollbar-hide max-w-lg mx-auto border-x border-border"
       style={{
         scrollBehavior: "smooth",
         scrollbarWidth: "none",

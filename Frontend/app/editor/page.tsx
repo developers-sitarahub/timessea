@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/contexts/AuthContext";
 
-import { useState, useRef, useEffect, Suspense } from "react";
+import { useState, useRef, useEffect, Suspense, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { EditorAuthOverlay } from "@/components/editor-auth-overlay";
@@ -14,7 +14,7 @@ import {
   ListOrdered,
   Quote,
   Heading2,
-  Link2,
+  Link,
   ImagePlus,
   Eye,
   Send,
@@ -26,6 +26,7 @@ import {
   Clock,
   Trash2,
   Edit,
+  MapPin,
 } from "lucide-react";
 import { categories, Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,9 @@ import {
   ArticleCardHorizontal,
 } from "@/components/article-card";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "react-toastify";
+import { showConfirmDelete } from "@/lib/confirm-delete";
+import { ContentBlock } from "@/components/content-block";
 
 function EditorContent() {
   const router = useRouter();
@@ -42,14 +46,23 @@ function EditorContent() {
 
   const [title, setTitle] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  type Block = { id: string; type: "text" | "image"; content: string };
+  type Block = {
+    id: string;
+    type: "text" | "image";
+    content: string;
+    caption?: string;
+  };
   const [blocks, setBlocks] = useState<Block[]>([
     { id: crypto.randomUUID(), type: "text", content: "" },
   ]);
   const [activeBlockId, setActiveBlockId] = useState<string>(blocks[0].id);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isPreview, setIsPreview] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"cards" | "article">("cards");
   const [published, setPublished] = useState(false);
+  const [showLinkInput, setShowLinkInput] = useState(false);
+  const [linkUrl, setLinkUrl] = useState("");
+  const [savedSelection, setSavedSelection] = useState<Range | null>(null);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -57,6 +70,8 @@ function EditorContent() {
   const [editingDraftId, setEditingDraftId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const coverImageInputRef = useRef<HTMLInputElement>(null);
+  const activeTextAreaRef = useRef<HTMLElement | null>(null);
+  const [activeActions, setActiveActions] = useState<string[]>([]);
 
   // Schedule state
   const [scheduledAt, setScheduledAt] = useState<string>("");
@@ -94,16 +109,80 @@ function EditorContent() {
     "Review",
   ];
 
+  const updateActiveActions = useCallback(() => {
+    if (typeof document === "undefined") return;
+    const actions: string[] = [];
+    if (document.queryCommandState("bold")) actions.push("Bold");
+    if (document.queryCommandState("italic")) actions.push("Italic");
+    if (document.queryCommandState("insertUnorderedList")) actions.push("List");
+    if (document.queryCommandState("insertOrderedList"))
+      actions.push("Ordered List");
+
+    const blockType = document.queryCommandValue("formatBlock");
+    if (blockType === "h2") actions.push("Heading");
+    if (blockType === "blockquote") actions.push("Quote");
+
+    setActiveActions(actions);
+  }, []);
+
+  useEffect(() => {
+    const handler = () => updateActiveActions();
+    document.addEventListener("selectionchange", handler);
+    return () => document.removeEventListener("selectionchange", handler);
+  }, [updateActiveActions]);
+
   const toolbarButtons = [
-    { icon: Bold, label: "Bold", action: "**" },
-    { icon: Italic, label: "Italic", action: "_" },
-    { icon: List, label: "List", action: "\n- " },
-    { icon: ListOrdered, label: "Ordered List", action: "\n1. " },
-    { icon: Quote, label: "Quote", action: "\n> " },
-    { icon: Heading2, label: "Heading", action: "\n## " },
-    { icon: Link2, label: "Link", action: "[](url)" },
+    { icon: Bold, label: "Bold", action: "bold" },
+    { icon: Italic, label: "Italic", action: "italic" },
+    { icon: List, label: "List", action: "insertUnorderedList" },
+    { icon: ListOrdered, label: "Ordered List", action: "insertOrderedList" },
+    { icon: Quote, label: "Quote", action: "blockquote" },
     { icon: ImagePlus, label: "Image", action: "image" },
   ];
+
+  const handleToolbarAction = (btn: any) => {
+    if (btn.label === "Image") {
+      fileInputRef.current?.click();
+      return;
+    }
+
+    if (!activeTextAreaRef.current) return;
+    activeTextAreaRef.current.focus();
+
+    if (btn.label === "Heading") {
+      const isH2 = document.queryCommandValue("formatBlock") === "h2";
+      document.execCommand("formatBlock", false, isH2 ? "p" : "h2");
+    } else if (btn.label === "Quote") {
+      const isQuote =
+        document.queryCommandValue("formatBlock") === "blockquote";
+      document.execCommand("formatBlock", false, isQuote ? "p" : "blockquote");
+    } else if (btn.label === "Link") {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        // Save the selection range
+        setSavedSelection(selection.getRangeAt(0));
+        setShowLinkInput(true);
+      }
+    } else {
+      document.execCommand(btn.action, false);
+    }
+    updateActiveActions();
+  };
+
+  const handleLinkSubmit = () => {
+    if (savedSelection && linkUrl) {
+      // Restore selection
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(savedSelection);
+        document.execCommand("createLink", false, linkUrl);
+      }
+    }
+    setShowLinkInput(false);
+    setLinkUrl("");
+    setSavedSelection(null);
+  };
 
   // Removed local storage user loading
 
@@ -149,15 +228,16 @@ function EditorContent() {
       // Parse content into blocks
       if (article.content) {
         const contentBlocks: Block[] = [];
-        const imageRegex = /!\[Image\]\((.+?)\)/g;
+        const combinedRegex = /(!\[.*?\]\(.+?\))|(<figure>[\s\S]*?<\/figure>)/g;
         let lastIndex = 0;
         let match;
 
-        while ((match = imageRegex.exec(article.content)) !== null) {
-          // Add text before image
+        while ((match = combinedRegex.exec(article.content)) !== null) {
+          // Add text before image/figure
           const textBefore = article.content
             .substring(lastIndex, match.index)
             .trim();
+
           if (textBefore) {
             contentBlocks.push({
               id: crypto.randomUUID(),
@@ -166,14 +246,34 @@ function EditorContent() {
             });
           }
 
-          // Add image block
-          contentBlocks.push({
-            id: crypto.randomUUID(),
-            type: "image",
-            content: match[1],
-          });
+          if (match[1]) {
+            // Markdown Image
+            const mdMatch = /!\[(.*?)\]\((.+?)\)/.exec(match[1]);
+            if (mdMatch) {
+              contentBlocks.push({
+                id: crypto.randomUUID(),
+                type: "image",
+                content: mdMatch[2],
+                caption: mdMatch[1] === "Image" ? "" : mdMatch[1],
+              });
+            }
+          } else if (match[2]) {
+            // HTML Figure
+            const srcMatch = /src="(.*?)"/.exec(match[2]);
+            const captionMatch = /<figcaption>(.*?)<\/figcaption>/.exec(
+              match[2],
+            );
+            if (srcMatch) {
+              contentBlocks.push({
+                id: crypto.randomUUID(),
+                type: "image",
+                content: srcMatch[1],
+                caption: captionMatch ? captionMatch[1] : "",
+              });
+            }
+          }
 
-          lastIndex = imageRegex.lastIndex;
+          lastIndex = combinedRegex.lastIndex;
         }
 
         // Add remaining text
@@ -202,7 +302,7 @@ function EditorContent() {
       }
     } catch (error) {
       console.error("Error loading draft:", error);
-      alert("Failed to load draft. Please try again.");
+      toast.error("Failed to load draft. Please try again.");
     } finally {
       setIsLoadingDraft(false);
     }
@@ -257,6 +357,7 @@ function EditorContent() {
           id: crypto.randomUUID(),
           type: "image",
           content: base64String,
+          caption: "",
         };
         const newTextBlock: Block = {
           id: crypto.randomUUID(),
@@ -271,13 +372,18 @@ function EditorContent() {
   };
 
   const fullContent = blocks
-    .map((b) => (b.type === "image" ? `\n![Image](${b.content})\n` : b.content))
+    .map((b) =>
+      b.type === "image"
+        ? `\n<figure class="image-block"><img src="${b.content}" alt="Image" /><figcaption>${b.caption || ""}</figcaption></figure>\n`
+        : b.content,
+    )
     .join("\n");
 
   const wordCount = blocks
     .filter((b) => b.type === "text")
     .map((b) => b.content)
     .join(" ")
+    .replace(/<[^>]*>/g, " ")
     .trim()
     .split(/\s+/)
     .filter((w) => w.length > 0).length;
@@ -351,6 +457,7 @@ function EditorContent() {
       }
 
       setPublished(true);
+      toast.success("Article published successfully! Redirecting...");
 
       // If scheduled, switch to Scheduled tab
       if (scheduledAt) {
@@ -376,6 +483,11 @@ function EditorContent() {
   const handleSaveDraft = async () => {
     if (!isAuthenticated) {
       setShowLoginOverlay(true);
+      return;
+    }
+
+    if (!title.trim() || !subheadline.trim()) {
+      toast.error("Both Headline and Summary are required.");
       return;
     }
     setIsSavingDraft(true);
@@ -433,6 +545,7 @@ function EditorContent() {
       }
 
       setSaved(true);
+      toast.success("Draft saved successfully!");
       setTimeout(() => {
         setSaved(false);
         // Redirect to drafts page
@@ -445,24 +558,30 @@ function EditorContent() {
     }
   };
 
-  const handleDelete = async (postId: string) => {
-    if (!confirm("Are you sure you want to delete this scheduled post?"))
-      return;
-    try {
-      const res = await fetch(`http://localhost:5000/api/articles/${postId}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (res.ok) {
-        setScheduledPosts((prev) => prev.filter((p) => p.id !== postId));
-      } else {
-        console.error("Failed to delete post");
+  const handleDelete = (postId: string) => {
+    showConfirmDelete(async () => {
+      try {
+        const res = await fetch(
+          `http://localhost:5000/api/articles/${postId}`,
+          {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
+        );
+        if (res.ok) {
+          setScheduledPosts((prev) => prev.filter((p) => p.id !== postId));
+          toast.success("Post deleted successfully");
+        } else {
+          console.error("Failed to delete post");
+          toast.error("Failed to delete post");
+        }
+      } catch (error) {
+        console.error("Error deleting post:", error);
+        toast.error("An error occurred while deleting the post");
       }
-    } catch (error) {
-      console.error("Error deleting post:", error);
-    }
+    }, "Are you sure you want to delete this scheduled post?");
   };
 
   const previewArticle: Article = {
@@ -521,17 +640,6 @@ function EditorContent() {
       {/* Header */}
       <header className="sticky top-0 z-40 mb-6 flex items-center justify-between gap-2 overflow-x-auto bg-background/95 backdrop-blur-sm pb-4 -mx-4 px-4">
         <div className="flex items-center gap-2 shrink-0">
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            type="button"
-            onClick={() => router.back()}
-            aria-label="Go back"
-            className="rounded-full bg-secondary/50 p-2 text-foreground transition-colors hover:bg-secondary shrink-0"
-          >
-            <ArrowLeft className="h-5 w-5" strokeWidth={2} />
-          </motion.button>
-
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
@@ -598,11 +706,16 @@ function EditorContent() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               type="button"
-              disabled={!title.trim() || !fullContent.trim()}
-              onClick={() => setIsPreview(true)}
+              disabled={
+                !title.trim() || !subheadline.trim() || !fullContent.trim()
+              }
+              onClick={() => {
+                setIsPreview(true);
+                setPreviewMode("cards");
+              }}
               className={cn(
                 "flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-background shadow-md transition-all",
-                !title.trim() || !fullContent.trim()
+                !title.trim() || !subheadline.trim() || !fullContent.trim()
                   ? "bg-muted text-muted-foreground shadow-none cursor-not-allowed"
                   : "bg-primary text-primary-foreground hover:bg-primary/90",
               )}
@@ -673,20 +786,52 @@ function EditorContent() {
             </motion.div>
           </>
         )}
-      </AnimatePresence>
 
-      <AnimatePresence mode="wait">
-        {published && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="mb-6 rounded-2xl border border-green-500/20 bg-green-500/10 p-4 text-center"
-          >
-            <p className="text-sm font-semibold text-green-500">
-              Your article has been published successfully! Redirecting...
-            </p>
-          </motion.div>
+        {/* Link Input Popover */}
+        {showLinkInput && (
+          <>
+            <div
+              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+              onClick={() => setShowLinkInput(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              className="fixed top-1/3 left-0 right-0 z-50 mx-auto max-w-sm rounded-2xl border border-border bg-card p-4 shadow-xl"
+            >
+              <h3 className="mb-3 text-sm font-bold flex items-center gap-2">
+                <Link className="h-4 w-4 text-primary" />
+                Insert Link
+              </h3>
+              <input
+                type="url"
+                placeholder="https://example.com"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleLinkSubmit();
+                }}
+                autoFocus
+                className="w-full bg-secondary/50 border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 mb-4"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setShowLinkInput(false)}
+                  className="px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleLinkSubmit}
+                  disabled={!linkUrl}
+                  className="px-4 py-1.5 text-xs font-bold bg-primary text-primary-foreground rounded-full hover:bg-primary/90 disabled:opacity-50"
+                >
+                  Apply
+                </button>
+              </div>
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
 
@@ -810,105 +955,241 @@ function EditorContent() {
               transition={{ duration: 0.2 }}
               className="space-y-6 rounded-3xl bg-card p-6 shadow-sm border border-border/50"
             >
-              <h1 className="text-3xl font-black leading-tight tracking-tight text-foreground font-serif text-balance">
-                {title || "Untitled Article"}
-              </h1>
-
-              <div className="flex items-center gap-3 text-xs font-medium text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden text-[10px] font-bold text-primary">
-                    {user?.picture ? (
-                      <img
-                        src={user.picture}
-                        alt={user.name}
-                        className="h-full w-full object-cover"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      user?.name?.charAt(0) || "A"
-                    )}
+              {previewMode === "cards" ? (
+                /* ─── CARDS VIEW ─── */
+                <div className="space-y-8">
+                  <div className="flex items-center justify-between border-b border-border/50 pb-4">
+                    <h2 className="text-2xl font-black font-serif text-foreground">
+                      Home Feed Preview
+                    </h2>
+                    <span className="text-xs font-medium text-muted-foreground bg-secondary/50 px-2 py-1 rounded-md">
+                      Click any card to view article
+                    </span>
                   </div>
-                  <span className="text-foreground">
-                    {user?.name || "Anonymous"}
-                  </span>
+
+                  <div className="grid gap-8">
+                    {/* Featured Card Wrapper */}
+                    <div
+                      className="space-y-3 cursor-pointer group"
+                      onClickCapture={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPreviewMode("article");
+                      }}
+                    >
+                      <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider group-hover:text-primary transition-colors flex items-center gap-2">
+                        Featured Card{" "}
+                        <span className="text-[10px] opacity-50 normal-case">
+                          (Click to Preview)
+                        </span>
+                      </h3>
+                      <div className="max-w-2xl border border-dashed border-border/50 p-6 rounded-2xl bg-secondary/10 group-hover:border-primary/30 group-hover:bg-secondary/20 transition-all">
+                        <div className="pointer-events-none">
+                          <ArticleCardFeatured article={previewArticle} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Standard Card Wrapper */}
+                    <div
+                      className="space-y-3 cursor-pointer group"
+                      onClickCapture={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setPreviewMode("article");
+                      }}
+                    >
+                      <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider group-hover:text-primary transition-colors flex items-center gap-2">
+                        Standard Card{" "}
+                        <span className="text-[10px] opacity-50 normal-case">
+                          (Click to Preview)
+                        </span>
+                      </h3>
+                      <div className="max-w-2xl border border-dashed border-border/50 p-6 rounded-2xl bg-secondary/10 group-hover:border-primary/30 group-hover:bg-secondary/20 transition-all">
+                        <div className="pointer-events-none">
+                          <ArticleCardHorizontal article={previewArticle} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-border">|</span>
-                <span>Just now</span>
-                <span className="text-border">|</span>
-                <span className="flex items-center gap-1">
-                  <span className="h-1 w-1 rounded-full bg-muted-foreground/50" />
-                  {readTime} min read
-                </span>
-              </div>
+              ) : (
+                /* ─── ARTICLE VIEW ─── */
+                <div className="space-y-6">
+                  <button
+                    onClick={() => setPreviewMode("cards")}
+                    className="flex items-center gap-2 text-sm font-bold text-muted-foreground hover:text-foreground transition-colors mb-4 px-3 py-1.5 rounded-full hover:bg-secondary/50 w-fit"
+                  >
+                    <ArrowLeft className="w-4 h-4" /> Back to Cards
+                  </button>
 
-              {selectedCategory && (
-                <span className="inline-flex items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary ring-1 ring-inset ring-primary/20">
-                  {selectedCategory}
-                </span>
-              )}
+                  {/* ── Section 1: Category Badge ── */}
+                  <div className="mb-3 px-1 mt-4">
+                    <span className="inline-block text-[11px] font-black tracking-[0.2em] text-red-600 dark:text-red-400 uppercase border-b-2 border-red-600 dark:border-red-400 pb-0.5">
+                      {selectedCategory || "NEWS"}
+                    </span>
+                  </div>
 
-              <div className="h-px w-full bg-border/50" />
+                  {/* ── Section 2: HEADING (Title) ── */}
+                  <h1
+                    className="mb-3 text-[26px] sm:text-[32px] font-black leading-[1.15] tracking-tight text-foreground px-1"
+                    style={{
+                      fontFamily: "'Georgia', 'Times New Roman', serif",
+                    }}
+                  >
+                    {title || "Untitled Article"}
+                  </h1>
 
-              <article className="prose prose-sm dark:prose-invert max-w-none text-muted-foreground">
-                {blocks.length > 0 ? (
-                  blocks.map((block) => {
-                    if (block.type === "image") {
-                      return (
-                        <motion.div
-                          key={block.id}
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          className="my-6 overflow-hidden rounded-xl"
-                        >
+                  {/* ── Section 3: SUMMARY / Subheadline ── */}
+                  {subheadline && (
+                    <div
+                      className="mb-5 text-[15px] sm:text-[17px] leading-relaxed text-foreground/70 px-1"
+                      style={{
+                        fontFamily: "'Georgia', 'Times New Roman', serif",
+                      }}
+                      dangerouslySetInnerHTML={{
+                        __html: subheadline.replace(/<[^>]*>/g, ""),
+                      }}
+                    />
+                  )}
+
+                  {/* ── Section 4: Author Row + Metadata ── */}
+                  <div className="mb-5 px-1">
+                    {/* Author Info */}
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="h-10 w-10 overflow-hidden rounded-full ring-2 ring-border/50 shrink-0">
+                        {user?.picture ? (
                           <img
-                            src={block.content}
-                            alt="Article Image"
-                            className="w-full object-cover"
+                            src={user.picture}
+                            alt={user.name}
+                            className="h-full w-full object-cover"
+                            referrerPolicy="no-referrer"
                           />
-                        </motion.div>
-                      );
-                    }
-                    return block.content
-                      .split("\n\n")
-                      .map((paragraph, index) => (
-                        <p
-                          key={`${block.id}-${index}`}
-                          className="leading-relaxed"
-                        >
-                          {paragraph}
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center bg-linear-to-br from-primary/20 to-primary/5 font-bold text-primary text-sm">
+                            {user?.name?.charAt(0) || "A"}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
+                          WRITTEN BY
                         </p>
-                      ));
-                  })
-                ) : (
-                  <p className="italic text-muted-foreground/50">
-                    No content to preview...
-                  </p>
-                )}
-              </article>
+                        <h3 className="font-bold text-foreground text-sm leading-tight">
+                          {user?.name || "Anonymous"}
+                        </h3>
+                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
+                          {location && (
+                            <>
+                              <MapPin className="w-3 h-3" strokeWidth={2} />
+                              <span className="font-semibold uppercase tracking-wide">
+                                {location}
+                              </span>
+                              <span className="text-border">•</span>
+                            </>
+                          )}
+                          <span>Just now</span>
+                        </div>
+                      </div>
+                      <button
+                        className="rounded-full px-4 py-1.5 text-[11px] font-bold text-primary ring-1 ring-primary/30 hover:bg-primary/5 transition-colors shrink-0"
+                        disabled
+                      >
+                        Follow
+                      </button>
+                    </div>
 
-              <div className="mt-12 pt-8 border-t border-border/50">
-                <h2 className="text-xl font-bold font-serif mb-6">
-                  Home Feed Preview
-                </h2>
-                <div className="grid gap-8">
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      Featured Card
-                    </h3>
-                    <div className="max-w-2xl border border-dashed border-border/50 p-6 rounded-2xl bg-secondary/10">
-                      <ArticleCardFeatured article={previewArticle} />
+                    {/* ── Metadata Bar ── */}
+                    <div className="flex items-center gap-3 py-2.5 border-y border-border/40 text-[12px] text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5" />
+                        {readTime} min read
+                      </span>
+                      <span className="text-border">|</span>
+                      <span>Updated Just now</span>
                     </div>
                   </div>
-                  <div className="space-y-3">
-                    <h3 className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      Standard Card
-                    </h3>
-                    <div className="max-w-2xl border border-dashed border-border/50 p-6 rounded-2xl bg-secondary/10">
-                      <ArticleCardHorizontal article={previewArticle} />
+
+                  {/* ── Section 6: COVER IMAGE with Caption ── */}
+                  {(imageUrl || blocks.find((b) => b.type === "image")) && (
+                    <figure className="mb-6 -mx-5">
+                      <div className="w-full overflow-hidden bg-secondary relative">
+                        <img
+                          src={
+                            imageUrl ||
+                            blocks.find((b) => b.type === "image")?.content ||
+                            ""
+                          }
+                          alt="Cover"
+                          className="w-full h-auto"
+                        />
+                      </div>
+                      <figcaption className="px-5 pt-2 pb-0">
+                        {imageDescription ? (
+                          <div
+                            className="text-[12px] leading-relaxed text-muted-foreground italic"
+                            dangerouslySetInnerHTML={{
+                              __html: imageDescription,
+                            }}
+                          />
+                        ) : (
+                          <p className="text-[12px] leading-relaxed text-muted-foreground italic">
+                            {title}
+                          </p>
+                        )}
+                      </figcaption>
+                    </figure>
+                  )}
+
+                  {/* ── Section 7: ARTICLE BODY ── */}
+                  <article className="space-y-5 px-1">
+                    <div className="prose prose-lg dark:prose-invert max-w-none font-serif leading-relaxed prose-img:rounded-xl prose-img:w-full prose-headings:font-black prose-a:text-primary prose-blockquote:border-l-4 prose-blockquote:border-red-600 dark:prose-blockquote:border-red-400 prose-blockquote:bg-secondary/10 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:not-italic prose-figcaption:font-sans prose-figcaption:text-[12px] prose-figcaption:text-muted-foreground prose-figcaption:mt-2 prose-figcaption:leading-relaxed">
+                      {blocks.length > 0 ? (
+                        blocks.map((block) => {
+                          if (
+                            block.type === "image" &&
+                            block.content !== imageUrl
+                          ) {
+                            // Don't repeat the cover image if it's also a block simply by URL check (simplistic)
+                            return (
+                              <figure key={block.id} className="my-8">
+                                <img
+                                  src={block.content}
+                                  alt={block.caption || "Article Image"}
+                                  className="rounded-lg w-full"
+                                />
+                                {block.caption && (
+                                  <figcaption
+                                    className="text-center text-sm text-muted-foreground mt-2 italic"
+                                    dangerouslySetInnerHTML={{
+                                      __html: block.caption,
+                                    }}
+                                  />
+                                )}
+                              </figure>
+                            );
+                          }
+                          if (block.type === "text") {
+                            return (
+                              <div
+                                key={block.id}
+                                dangerouslySetInnerHTML={{
+                                  __html: block.content,
+                                }}
+                              />
+                            );
+                          }
+                          return null;
+                        })
+                      ) : (
+                        <p className="italic text-muted-foreground/50">
+                          Start writing to see your preview here...
+                        </p>
+                      )}
                     </div>
-                  </div>
+                  </article>
                 </div>
-              </div>
+              )}
 
               {/* Publish Actions */}
               <div className="flex items-center justify-between border-t border-border pt-6 mt-8">
@@ -953,12 +1234,14 @@ function EditorContent() {
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full bg-transparent text-4xl font-black placeholder:text-muted-foreground/20 focus:outline-none font-serif tracking-tight py-2 border-b-2 border-transparent focus:border-primary/20 transition-colors"
                 />
-                <input
-                  type="text"
-                  placeholder="Subheadline / Deck (Optional)"
-                  value={subheadline}
-                  onChange={(e) => setSubheadline(e.target.value)}
-                  className="w-full bg-transparent text-xl font-medium placeholder:text-muted-foreground/30 focus:outline-none tracking-tight py-2 border-b border-transparent focus:border-primary/20 transition-colors text-muted-foreground"
+                <ContentBlock
+                  html={subheadline}
+                  onChange={(html) => setSubheadline(html)}
+                  onFocus={(e: React.FocusEvent<HTMLDivElement>) => {
+                    setActiveBlockId("summary");
+                    activeTextAreaRef.current = e.currentTarget;
+                  }}
+                  className="w-full bg-transparent text-xl font-medium placeholder:text-muted-foreground/30 focus:outline-none tracking-tight py-2 border-b border-transparent focus:border-primary/20 transition-colors text-muted-foreground outline-none empty:before:content-['Summary'] empty:before:text-muted-foreground/30 prose-p:m-0"
                 />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -994,9 +1277,41 @@ function EditorContent() {
                   </div>
                 </div>
 
+                {/* Category Selector */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                    <Settings2 className="w-3 h-3" /> Category
+                  </label>
+                  <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-2 snap-x">
+                    {categories
+                      .filter((c) => c !== "Trending")
+                      .map((category) => (
+                        <motion.button
+                          whileTap={{ scale: 0.95 }}
+                          key={category}
+                          type="button"
+                          onClick={() =>
+                            setSelectedCategory(
+                              selectedCategory === category ? "" : category,
+                            )
+                          }
+                          className={cn(
+                            "snap-start shrink-0 rounded-full px-4 py-2 text-xs font-bold transition-all shadow-sm border border-transparent",
+                            selectedCategory === category
+                              ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20 ring-offset-2 ring-offset-background"
+                              : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary hover:text-foreground",
+                          )}
+                        >
+                          {category}
+                        </motion.button>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Cover Image Upload */}
                 <div className="relative">
                   {imageUrl ? (
-                    <div className="space-y-4">
+                    <div className="space-y-2">
                       <div className="relative h-64 w-full overflow-hidden rounded-xl border border-border group/image">
                         <img
                           src={imageUrl}
@@ -1010,16 +1325,15 @@ function EditorContent() {
                           <X className="h-4 w-4" />
                         </button>
                       </div>
-                      <div className="space-y-1">
-                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                          Image Description
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Describe this image for the home page..."
-                          value={imageDescription}
-                          onChange={(e) => setImageDescription(e.target.value)}
-                          className="w-full bg-secondary/30 rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary/20 placeholder:text-muted-foreground/50 text-foreground"
+                      <div className="rounded-lg border border-border bg-secondary/30 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+                        <ContentBlock
+                          html={imageDescription}
+                          onChange={(html) => setImageDescription(html)}
+                          onFocus={(e: React.FocusEvent<HTMLDivElement>) => {
+                            activeTextAreaRef.current = e.currentTarget;
+                            updateActiveActions();
+                          }}
+                          className="w-full min-h-[10px] px-3 py-2 text-sm font-medium focus:outline-none text-foreground resize-none prose prose-sm dark:prose-invert max-w-none prose-p:m-0 prose-ul:m-0 prose-li:m-0 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-5 prose-ol:pl-5 empty:before:content-['Image_Description'] empty:before:text-muted-foreground/50"
                         />
                       </div>
                     </div>
@@ -1029,7 +1343,7 @@ function EditorContent() {
                       className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-muted/20 py-12 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
                     >
                       <ImagePlus className="h-4 w-4" />
-                      Add Cover Image (Required for News)
+                      Add Cover Image
                     </button>
                   )}
                   <input
@@ -1039,128 +1353,6 @@ function EditorContent() {
                     accept="image/*"
                     onChange={handleCoverImageSelect}
                   />
-                </div>
-              </div>
-
-              {/* Category Selector */}
-              <div className="flex flex-col gap-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-                  <Settings2 className="w-3 h-3" /> Category
-                </label>
-                <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-2 snap-x">
-                  {categories
-                    .filter((c) => c !== "Trending")
-                    .map((category) => (
-                      <motion.button
-                        whileTap={{ scale: 0.95 }}
-                        key={category}
-                        type="button"
-                        onClick={() =>
-                          setSelectedCategory(
-                            selectedCategory === category ? "" : category,
-                          )
-                        }
-                        className={cn(
-                          "snap-start shrink-0 rounded-full px-4 py-2 text-xs font-bold transition-all shadow-sm border border-transparent",
-                          selectedCategory === category
-                            ? "bg-primary text-primary-foreground shadow-md ring-2 ring-primary/20 ring-offset-2 ring-offset-background"
-                            : "bg-secondary/50 text-muted-foreground border-border hover:bg-secondary hover:text-foreground",
-                        )}
-                      >
-                        {category}
-                      </motion.button>
-                    ))}
-                </div>
-              </div>
-
-              {/* Advanced Panels */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Trust & Verification */}
-                <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
-                    Trust & Verification
-                  </h3>
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-2 cursor-pointer group">
-                      <div
-                        className={cn(
-                          "h-4 w-4 rounded border flex items-center justify-center transition-colors",
-                          factChecked
-                            ? "bg-green-500 border-green-500 text-white"
-                            : "border-muted-foreground/30",
-                        )}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={factChecked}
-                          onChange={(e) => setFactChecked(e.target.checked)}
-                          className="hidden"
-                        />
-                        {factChecked && (
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="3"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            className="w-3 h-3"
-                          >
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
-                      <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">
-                        Fact-checked content
-                      </span>
-                    </label>
-                    <div>
-                      <label className="text-[10px] font-bold text-muted-foreground">
-                        Sources (Optional)
-                      </label>
-                      <textarea
-                        placeholder="List primary sources here..."
-                        className="w-full h-16 bg-secondary/30 rounded-lg p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/20 resize-none mt-1"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* SEO & Distribution */}
-                <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />
-                    SEO & Distribution
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-[10px] font-bold text-muted-foreground">
-                        Meta Title
-                      </label>
-                      <input
-                        type="text"
-                        placeholder={title || "Article Title"}
-                        value={seoTitle}
-                        onChange={(e) => setSeoTitle(e.target.value)}
-                        className="w-full bg-secondary/30 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/20 mt-1"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-muted-foreground">
-                        Meta Description
-                      </label>
-                      <textarea
-                        placeholder={
-                          subheadline || "Summary for search engines..."
-                        }
-                        value={seoDescription}
-                        onChange={(e) => setSeoDescription(e.target.value)}
-                        className="w-full h-16 bg-secondary/30 rounded-lg p-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/20 resize-none mt-1"
-                      />
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -1177,22 +1369,15 @@ function EditorContent() {
                       whileTap={{ scale: 0.9 }}
                       key={btn.label}
                       type="button"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors"
+                      className={cn(
+                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-colors",
+                        activeActions.includes(btn.label)
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-secondary",
+                      )}
                       title={btn.label}
-                      onClick={() => {
-                        if (btn.label === "Image") {
-                          fileInputRef.current?.click();
-                        } else {
-                          // Insert action into active block
-                          setBlocks((prev) =>
-                            prev.map((b) =>
-                              b.id === activeBlockId
-                                ? { ...b, content: b.content + btn.action }
-                                : b,
-                            ),
-                          );
-                        }
-                      }}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => handleToolbarAction(btn)}
                     >
                       <btn.icon className="h-4 w-4" strokeWidth={2} />
                       <span className="sr-only">{btn.label}</span>
@@ -1211,9 +1396,31 @@ function EditorContent() {
                         <div key={block.id} className="relative group my-4">
                           <img
                             src={block.content}
-                            alt="Inserted"
+                            alt={block.caption || "Inserted"}
                             className="w-full rounded-lg object-cover max-h-125"
                           />
+                          <div className="mt-2 rounded-lg border border-border bg-secondary/30 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
+                            <ContentBlock
+                              html={block.caption || ""}
+                              onChange={(html) => {
+                                setBlocks((prev) =>
+                                  prev.map((b) =>
+                                    b.id === block.id
+                                      ? { ...b, caption: html }
+                                      : b,
+                                  ),
+                                );
+                              }}
+                              onFocus={(
+                                e: React.FocusEvent<HTMLDivElement>,
+                              ) => {
+                                setActiveBlockId(block.id);
+                                activeTextAreaRef.current = e.currentTarget;
+                                updateActiveActions();
+                              }}
+                              className="w-full min-h-[10px] px-3 py-2 text-sm font-medium focus:outline-none text-foreground resize-none prose prose-sm dark:prose-invert max-w-none prose-p:m-0 prose-ul:m-0 prose-li:m-0 prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-5 prose-ol:pl-5 empty:before:content-['Type_caption...'] empty:before:text-muted-foreground/50"
+                            />
+                          </div>
                           <button
                             onClick={() => {
                               setBlocks(
@@ -1242,27 +1449,21 @@ function EditorContent() {
                     }
 
                     return (
-                      <textarea
+                      <ContentBlock
                         key={block.id}
-                        placeholder={
-                          index === 0 ? "Start writing your story..." : ""
-                        }
-                        value={block.content}
-                        onChange={(e) => {
-                          const val = e.target.value;
+                        html={block.content}
+                        onChange={(html: string) => {
                           setBlocks((prev) =>
                             prev.map((b) =>
-                              b.id === block.id ? { ...b, content: val } : b,
+                              b.id === block.id ? { ...b, content: html } : b,
                             ),
                           );
-                          // Auto-resize
-                          e.target.style.height = "auto";
-                          e.target.style.height = e.target.scrollHeight + "px";
                         }}
-                        onFocus={() => setActiveBlockId(block.id)}
-                        className="w-full resize-none bg-transparent text-base leading-relaxed placeholder:text-muted-foreground/30 focus:outline-none font-medium text-foreground overflow-hidden"
-                        style={{ height: "auto" }}
-                        rows={1}
+                        onFocus={(e: React.FocusEvent<HTMLDivElement>) => {
+                          setActiveBlockId(block.id);
+                          activeTextAreaRef.current = e.currentTarget;
+                        }}
+                        className="w-full bg-transparent text-base leading-relaxed placeholder:text-muted-foreground/30 focus:outline-none font-medium text-foreground outline-none empty:before:content-['Start_writing...'] empty:before:text-muted-foreground/20 prose prose-sm dark:prose-invert max-w-none prose-p:m-0 prose-headings:m-0 prose-h2:text-xl prose-h2:font-bold prose-blockquote:border-l-4 prose-blockquote:border-primary prose-blockquote:pl-4 prose-blockquote:italic prose-ul:list-disc prose-ol:list-decimal prose-ul:pl-5 prose-ol:pl-5"
                       />
                     );
                   })}
