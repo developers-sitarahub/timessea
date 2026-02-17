@@ -25,7 +25,10 @@ import { motion } from "framer-motion";
 import type { Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
-import { ArticleCardVertical, ArticleCardHorizontal } from "@/components/article-card";
+import {
+  ArticleCardVertical,
+  ArticleCardHorizontal,
+} from "@/components/article-card";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
@@ -141,7 +144,7 @@ function CommentItem({
                 "flex items-center gap-1 text-[11px] font-semibold transition-colors",
                 comment.liked
                   ? "text-red-500"
-                  : "text-muted-foreground hover:text-red-500"
+                  : "text-muted-foreground hover:text-red-500",
               )}
             >
               <Heart
@@ -335,84 +338,94 @@ export default function ArticlePage({
   useEffect(() => {
     // Initial Fetch for Related and Trending
     async function initData() {
-        setLoadingRelated(true);
-        setLoadingTrending(true);
-        try {
-            // Fetch initial Related (Limit 4)
-            const resRelated = await fetch(`${API_URL}/api/articles/${id}/related?limit=4&offset=0&t=${Date.now()}`);
-            if (resRelated.ok) {
-                const data = await resRelated.json();
-                setRelatedArticles(data);
-                if (data.length < 4) setHasMoreRelated(false);
-                setRelatedOffset(4);
-            }
-
-            // Fetch initial Trending (Limit 4)
-            // Note: pass excludeId={id} to filter current viewing article from trending list
-            // Fetch 10 initially to have a buffer after filtering related ones
-            const resTrending = await fetch(`${API_URL}/api/articles/trending/all?limit=10&offset=0&excludeId=${id}`);
-             if (resTrending.ok) {
-                const data = await resTrending.json();
-                setTrendingArticles(data);
-                if (data.length < 10) setHasMoreTrending(false);
-                setTrendingOffset(10);
-            }
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setLoadingRelated(false);
-            setLoadingTrending(false);
+      setLoadingRelated(true);
+      setLoadingTrending(true);
+      try {
+        // Fetch initial Related (Limit 4)
+        const resRelated = await fetch(
+          `${API_URL}/api/articles/${id}/related?limit=4&offset=0&t=${Date.now()}`,
+        );
+        if (resRelated.ok) {
+          const data = await resRelated.json();
+          setRelatedArticles(data);
+          if (data.length < 4) setHasMoreRelated(false);
+          setRelatedOffset(4);
         }
+
+        // Fetch initial Trending (Limit 4)
+        // Note: pass excludeId={id} to filter current viewing article from trending list
+        // Fetch 10 initially to have a buffer after filtering related ones
+        const resTrending = await fetch(
+          `${API_URL}/api/articles/trending/all?limit=10&offset=0&excludeId=${id}`,
+        );
+        if (resTrending.ok) {
+          const data = await resTrending.json();
+          setTrendingArticles(data);
+          if (data.length < 10) setHasMoreTrending(false);
+          setTrendingOffset(10);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoadingRelated(false);
+        setLoadingTrending(false);
+      }
     }
-    
+
     if (id) initData();
   }, [id]);
 
   const loadMoreRelated = async () => {
-      try {
-          const res = await fetch(`${API_URL}/api/articles/${id}/related?limit=4&offset=${relatedOffset}`);
-          if (res.ok) {
-              const data = await res.json();
-              if (data.length > 0) {
-                  setRelatedArticles(prev => [...prev, ...data]);
-                  setRelatedOffset(prev => prev + 4);
-                  if (data.length < 4) setHasMoreRelated(false);
-              } else {
-                  setHasMoreRelated(false);
-              }
-          }
-      } catch (e) {
-          console.error("Failed to load more related", e);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/articles/${id}/related?limit=4&offset=${relatedOffset}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.length > 0) {
+          setRelatedArticles((prev) => [...prev, ...data]);
+          setRelatedOffset((prev) => prev + 4);
+          if (data.length < 4) setHasMoreRelated(false);
+        } else {
+          setHasMoreRelated(false);
+        }
       }
+    } catch (e) {
+      console.error("Failed to load more related", e);
+    }
   };
 
   const loadMoreTrending = async () => {
-    const filteredTrending = trendingArticles.filter(t => !relatedArticles.some(r => r.id === t.id));
-    
+    const filteredTrending = trendingArticles.filter(
+      (t) => !relatedArticles.some((r) => r.id === t.id),
+    );
+
     // If we have more articles already fetched but not shown, show them first
     if (trendingVisibleCount < filteredTrending.length) {
-        setTrendingVisibleCount(prev => prev + 4);
-        return;
+      setTrendingVisibleCount((prev) => prev + 4);
+      return;
     }
 
     if (!hasMoreTrending) return;
 
-      try {
-          const res = await fetch(`${API_URL}/api/articles/trending/all?limit=4&offset=${trendingOffset}&excludeId=${id}`);
-          if (res.ok) {
-              const data = await res.json();
-               if (data.length > 0) {
-                  setTrendingArticles(prev => [...prev, ...data]);
-                  setTrendingOffset(prev => prev + 4);
-                  setTrendingVisibleCount(prev => prev + 4);
-                  if (data.length < 4) setHasMoreTrending(false);
-              } else {
-                  setHasMoreTrending(false);
-              }
-          }
-      } catch (e) {
-          console.error("Failed to load more trending", e);
+    try {
+      const res = await fetch(
+        `${API_URL}/api/articles/trending/all?limit=4&offset=${trendingOffset}&excludeId=${id}`,
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.length > 0) {
+          setTrendingArticles((prev) => [...prev, ...data]);
+          setTrendingOffset((prev) => prev + 4);
+          setTrendingVisibleCount((prev) => prev + 4);
+          if (data.length < 4) setHasMoreTrending(false);
+        } else {
+          setHasMoreTrending(false);
+        }
       }
+    } catch (e) {
+      console.error("Failed to load more trending", e);
+    }
   };
 
   // Fetch comments
@@ -467,7 +480,7 @@ export default function ArticlePage({
     const originalLikes = article.likes;
 
     const willLike = !originalLiked;
-    
+
     // Optimistic update
     setArticle({
       ...article,
@@ -480,7 +493,7 @@ export default function ArticlePage({
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      
+
       await fetch(`${API_URL}/api/articles/${id}/like`, {
         method: "POST",
         headers,
@@ -488,15 +501,13 @@ export default function ArticlePage({
     } catch (e) {
       console.error("Failed to like", e);
       // Revert logic
-      setArticle({ 
-        ...article, 
-        liked: originalLiked, 
-        likes: originalLikes, 
+      setArticle({
+        ...article,
+        liked: originalLiked,
+        likes: originalLikes,
       });
     }
   };
-
-
 
   const handleShare = async () => {
     if (navigator.share) {
@@ -622,7 +633,7 @@ export default function ArticlePage({
           Authorization: `Bearer ${token}`,
         },
       });
-      
+
       if (!res.ok) {
         // Revert on failure (could implement more robust revert logic here)
         await fetchComments();
@@ -700,8 +711,10 @@ export default function ArticlePage({
   // Strip image markdown from text (for display as plain text like excerpt)
   const stripImageMarkdown = (text: string): string => {
     if (!text) return "";
+    // Remove HTML tags first
+    let cleaned = text.replace(/<[^>]*>/g, "");
     // Remove complete markdown image syntax: ![alt](src) — handles base64, http, and any other src
-    let cleaned = text.replace(/!\[.*?\]\([^)]*\)/g, "");
+    cleaned = cleaned.replace(/!\[.*?\]\([^)]*\)/g, "");
     // Remove TRUNCATED markdown image syntax (no closing paren): ![alt](data:image/...
     cleaned = cleaned.replace(/!\[.*?\]\([^)]*$/g, "");
     // Remove truncated image pattern at start: ![...
@@ -717,38 +730,6 @@ export default function ArticlePage({
     cleaned = cleaned.replace(/\n{3,}/g, "\n\n");
     return cleaned.trim();
   };
-
-  // Parse content into segments: text paragraphs and images (preserving order)
-  const parseContent = (
-    content: string,
-  ): Array<
-    { type: "text"; text: string } | { type: "image"; src: string; alt: string }
-  > => {
-    const segments: Array<
-      | { type: "text"; text: string }
-      | { type: "image"; src: string; alt: string }
-    > = [];
-    // Split by markdown image pattern, capturing the image parts
-    // Pattern: ![alt](src) where src can be anything including base64
-    const parts = content.split(/(!\[.*?\]\([^)]*\))/);
-
-    for (const part of parts) {
-      const imageMatch = part.match(/^!\[(.*?)\]\(([^)]*)\)$/);
-      if (imageMatch) {
-        const alt = imageMatch[1];
-        const src = imageMatch[2];
-        // Only add if src is non-empty and it's not the cover image
-        if (src && src !== article.image) {
-          segments.push({ type: "image", src, alt: alt || "Article Image" });
-        }
-      } else if (part.trim()) {
-        segments.push({ type: "text", text: part.trim() });
-      }
-    }
-    return segments;
-  };
-
-  const contentSegments = parseContent(article.content);
 
   // Clean excerpt/subheadline of any image markdown
   const cleanExcerpt = article.subheadline
@@ -924,7 +905,12 @@ export default function ArticlePage({
 
         {/* ── Section 6: COVER IMAGE with Caption ── */}
         <figure className="mb-6 -mx-5">
-          <div className={cn("w-full overflow-hidden bg-secondary relative", !article.image && "aspect-video")}>
+          <div
+            className={cn(
+              "w-full overflow-hidden bg-secondary relative",
+              !article.image && "aspect-video",
+            )}
+          >
             {article.image ? (
               <img
                 src={article.image}
@@ -959,7 +945,7 @@ export default function ArticlePage({
                 {article.title}
                 <span className="text-muted-foreground/70 not-italic">
                   {" "}
-                  | Photo: Special Arrangement
+                  {/* | Photo: Special Arrangement */}
                 </span>
               </p>
             )}
@@ -968,121 +954,15 @@ export default function ArticlePage({
 
         {/* ── Section 7: ARTICLE BODY ── */}
         <article className="space-y-5 px-1">
-          {contentSegments.map((segment, index) => {
-            // ── Image segment: render as figure ──
-            if (segment.type === "image") {
-              return (
-                <figure
-                  key={`img-${index}`}
-                  className="my-6 mx-auto"
-                  style={{ maxWidth: "85%" }}
-                >
-                  <div className="overflow-hidden rounded-md border border-border/30 shadow-sm">
-                    <img
-                      src={segment.src}
-                      alt={segment.alt}
-                      className="w-full h-auto object-cover"
-                    />
-                  </div>
-                  {segment.alt &&
-                    segment.alt !== "Image" &&
-                    segment.alt !== "Article Image" && (
-                      <figcaption className="mt-1.5 text-[11px] text-muted-foreground text-center leading-relaxed italic">
-                        {segment.alt}
-                      </figcaption>
-                    )}
-                </figure>
-              );
-            }
-
-            // ── Text segment: split into paragraphs ──
-            const textParagraphs = segment.text
-              .split("\n\n")
-              .filter((p) => p.trim());
-            return textParagraphs.map((paragraph, pIdx) => {
-              const globalKey = `${index}-${pIdx}`;
-
-              // Skip empty paragraphs
-              if (!paragraph.trim()) return null;
-
-              // Bold section headings
-              if (paragraph.startsWith("**") && paragraph.endsWith("**")) {
-                const text = paragraph.replace(/\*\*/g, "");
-                return (
-                  <h2
-                    key={globalKey}
-                    className="text-lg font-black text-foreground pt-3 pb-1 tracking-tight"
-                    style={{
-                      fontFamily: "'Georgia', 'Times New Roman', serif",
-                    }}
-                  >
-                    {text}
-                  </h2>
-                );
-              }
-
-              // Markdown headings
-              if (paragraph.startsWith("##")) {
-                const text = paragraph.replace(/^##\s*/, "");
-                return (
-                  <h2
-                    key={globalKey}
-                    className="text-xl font-black text-foreground pt-5 pb-1.5 tracking-tight"
-                    style={{
-                      fontFamily: "'Georgia', 'Times New Roman', serif",
-                    }}
-                  >
-                    {text}
-                  </h2>
-                );
-              }
-
-              // Blockquotes — The Hindu editorial style
-              if (paragraph.startsWith(">")) {
-                const text = paragraph.replace(/^>\s*/, "");
-                return (
-                  <blockquote
-                    key={globalKey}
-                    className="border-l-3 border-red-600 dark:border-red-400 pl-4 py-2 my-5 text-[17px] font-medium text-foreground/85 leading-relaxed"
-                    style={{
-                      fontFamily: "'Georgia', 'Times New Roman', serif",
-                    }}
-                  >
-                    <span className="italic">&ldquo;{text}&rdquo;</span>
-                  </blockquote>
-                );
-              }
-
-              // Regular paragraphs — The Hindu body text style
-              // Clean any leftover image remnants from text
-              const cleanedParagraph = stripImageMarkdown(paragraph);
-              if (!cleanedParagraph.trim()) return null;
-
-              const parts = cleanedParagraph.split(/(\*\*[^*]+\*\*)/);
-              // Determine if this is the very first text paragraph
-              const isFirstTextParagraph = index === 0 && pIdx === 0;
-
-              return (
-                <p
-                  key={globalKey}
-                  className="text-[16px] sm:text-[17px] leading-[1.85] text-foreground/85 tracking-[0.01em]"
-                  style={{ fontFamily: "'Georgia', 'Times New Roman', serif" }}
-                >
-                  {/* First paragraph: dateline style with location */}
-                  {parts.map((part, i) => {
-                    if (part.startsWith("**") && part.endsWith("**")) {
-                      return (
-                        <strong key={i} className="font-bold text-foreground">
-                          {part.replace(/\*\*/g, "")}
-                        </strong>
-                      );
-                    }
-                    return <span key={i}>{part}</span>;
-                  })}
-                </p>
-              );
-            });
-          })}
+          <div
+            className="prose prose-lg dark:prose-invert max-w-none font-serif leading-relaxed prose-img:rounded-xl prose-img:w-full prose-headings:font-black prose-a:text-primary prose-blockquote:border-l-4 prose-blockquote:border-red-600 dark:prose-blockquote:border-red-400 prose-blockquote:bg-secondary/10 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:not-italic prose-figcaption:font-sans prose-figcaption:text-[12px] prose-figcaption:text-muted-foreground prose-figcaption:mt-2 prose-figcaption:leading-relaxed"
+            dangerouslySetInnerHTML={{
+              __html: article.content.replace(
+                /!\[(.*?)\]\((.+?)\)/g,
+                '<figure class="my-8"><img src="$2" alt="$1" class="rounded-lg w-full"/><figcaption class="text-center text-sm text-muted-foreground mt-2 italic">$1</figcaption></figure>',
+              ),
+            }}
+          />
         </article>
 
         {/* ── Section 8: Tags ── */}
@@ -1104,227 +984,261 @@ export default function ArticlePage({
         {/* ── Section 9: Thin Divider ── */}
         <div className="h-px w-full bg-border/50 my-8 mx-1" />
 
-
-
-          {/* ── Section 10: Interaction Bar — Premium Layout ── */}
-          <div className="flex items-center justify-between border-y border-border/40 py-4 my-8 mx-1">
-            <div className="flex items-center gap-6">
-              {/* Like */}
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={handleLike}
-                className={cn(
-                  "flex items-center gap-2 text-[14px] font-bold transition-all group",
-                  article.liked ? "text-red-500" : "text-muted-foreground hover:text-red-500"
-                )}
-              >
-                <div className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
-                  article.liked ? "bg-red-500/10" : "bg-secondary group-hover:bg-red-500/10"
-                )}>
-                  <Heart className={cn("w-5 h-5", article.liked && "fill-current")} strokeWidth={2} />
-                </div>
-                {article.likes > 0 && <span>{article.likes}</span>}
-              </motion.button>
-
-
-
-              {/* Comment */}
-              <motion.button
-                whileTap={{ scale: 0.9 }}
-                onClick={handleToggleComments}
-                className={cn(
-                  "flex items-center gap-2 text-[14px] font-bold transition-all group",
-                  showCommentSection ? "text-primary" : "text-muted-foreground hover:text-primary"
-                )}
-              >
-                <div className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
-                  showCommentSection ? "bg-primary/10" : "bg-secondary group-hover:bg-primary/10"
-                )}>
-                  <MessageCircle className={cn("w-5 h-5", showCommentSection && "fill-primary/10")} strokeWidth={2} />
-                </div>
-                {commentCount > 0 && <span>{commentCount}</span>}
-              </motion.button>
-            </div>
-
+        {/* ── Section 10: Interaction Bar — Premium Layout ── */}
+        <div className="flex items-center justify-between border-y border-border/40 py-4 my-8 mx-1">
+          <div className="flex items-center gap-6">
+            {/* Like */}
             <motion.button
               whileTap={{ scale: 0.9 }}
-              onClick={handleShare}
-              className="flex items-center gap-2 text-[14px] font-bold text-muted-foreground hover:text-foreground transition-all group"
+              onClick={handleLike}
+              className={cn(
+                "flex items-center gap-2 text-[14px] font-bold transition-all group",
+                article.liked
+                  ? "text-red-500"
+                  : "text-muted-foreground hover:text-red-500",
+              )}
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary group-hover:bg-foreground/5 transition-colors">
-                <Share2 className="w-5 h-5" strokeWidth={2} />
+              <div
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+                  article.liked
+                    ? "bg-red-500/10"
+                    : "bg-secondary group-hover:bg-red-500/10",
+                )}
+              >
+                <Heart
+                  className={cn("w-5 h-5", article.liked && "fill-current")}
+                  strokeWidth={2}
+                />
               </div>
-              <span className="hidden sm:inline">Share Story</span>
+              {article.likes > 0 && <span>{article.likes}</span>}
+            </motion.button>
+
+            {/* Comment */}
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={handleToggleComments}
+              className={cn(
+                "flex items-center gap-2 text-[14px] font-bold transition-all group",
+                showCommentSection
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-primary",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+                  showCommentSection
+                    ? "bg-primary/10"
+                    : "bg-secondary group-hover:bg-primary/10",
+                )}
+              >
+                <MessageCircle
+                  className={cn(
+                    "w-5 h-5",
+                    showCommentSection && "fill-primary/10",
+                  )}
+                  strokeWidth={2}
+                />
+              </div>
+              {commentCount > 0 && <span>{commentCount}</span>}
             </motion.button>
           </div>
 
-          {/* ── Section 11: Comment Section (Conditional) ── */}
-          {showCommentSection && (
-            <div className="mb-10 px-1 animate-in slide-in-from-top-4 duration-500">
-              <div className="flex items-start gap-3 mb-6">
-                <div className="h-9 w-9 rounded-full bg-secondary shrink-0 overflow-hidden ring-1 ring-border/50">
-                  {user?.picture ? (
-                    <img
-                      src={user.picture}
-                      alt=""
-                      className="h-full w-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <div className="h-full w-full flex items-center justify-center text-xs font-bold text-muted-foreground">
-                      {user?.name?.charAt(0) || "U"}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    placeholder="Engage with this story..."
-                    value={commentText}
-                    onChange={(e) => setCommentText(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && submitComment()}
-                    className="w-full bg-secondary/40 rounded-2xl border border-border/50 px-4 py-2.5 text-[14px] text-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-secondary/60 focus:border-primary/30 transition-all font-medium"
-                  />
-                  {commentText.trim() && (
-                    <button
-                      onClick={submitComment}
-                      disabled={submittingComment}
-                      className="absolute right-2 top-1.5 h-7 px-3 bg-primary text-primary-foreground rounded-lg font-bold text-[11px] uppercase tracking-wide disabled:opacity-50"
-                    >
-                      {submittingComment ? <Loader2 className="w-3 h-3 animate-spin" /> : "Post"}
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {loadingComments ? (
-                <div className="space-y-4">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="flex gap-3 animate-pulse">
-                      <div className="h-8 w-8 rounded-full bg-secondary" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-3 w-24 bg-secondary rounded" />
-                        <div className="h-3 w-full bg-secondary rounded" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : comments.length === 0 ? (
-                <div className="text-center py-8 rounded-2xl bg-secondary/20 border border-dashed border-border/50">
-                  <p className="text-[13px] font-medium text-muted-foreground">No conversations yet. Start the discussion.</p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {comments.map((comment) => (
-                    <CommentItem
-                      key={comment.id}
-                      comment={comment}
-                      depth={0}
-                      articleId={id}
-                      token={token}
-                      currentUserId={user?.id || null}
-                      onReply={handleReply}
-                      onDelete={handleDeleteComment}
-                      onLike={handleLikeComment}
-                      onAuthRequired={() => setShowAuthModal(true)}
-                    />
-                  ))}
-                </div>
-              )}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={handleShare}
+            className="flex items-center gap-2 text-[14px] font-bold text-muted-foreground hover:text-foreground transition-all group"
+          >
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary group-hover:bg-foreground/5 transition-colors">
+              <Share2 className="w-5 h-5" strokeWidth={2} />
             </div>
-          )}
+            <span className="hidden sm:inline">Share Story</span>
+          </motion.button>
+        </div>
 
-          {/* ── Section 12: Related Stories ── */}
-          <div className="mt-12 mb-20 px-1 border-t border-border/40 pt-10">
-            <h3 className="text-[18px] font-black tracking-tight text-foreground mb-6 flex items-center gap-2 font-serif">
-              <TrendingUp className="w-5 h-5 text-primary" />
-              Related Stories
-            </h3>
-            
-            {loadingRelated ? (
-              <div className="space-y-8">
-                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="group cursor-wait">
-                      <div className="aspect-[16/9] w-full bg-secondary rounded-2xl mb-3 overflow-hidden animate-pulse relative" />
-                      <div className="space-y-2">
-                        <div className="h-4 w-1/4 bg-secondary rounded-md animate-pulse" />
-                        <div className="h-5 w-full bg-secondary rounded-md animate-pulse" />
-                      </div>
+        {/* ── Section 11: Comment Section (Conditional) ── */}
+        {showCommentSection && (
+          <div className="mb-10 px-1 animate-in slide-in-from-top-4 duration-500">
+            <div className="flex items-start gap-3 mb-6">
+              <div className="h-9 w-9 rounded-full bg-secondary shrink-0 overflow-hidden ring-1 ring-border/50">
+                {user?.picture ? (
+                  <img
+                    src={user.picture}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="h-full w-full flex items-center justify-center text-xs font-bold text-muted-foreground">
+                    {user?.name?.charAt(0) || "U"}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 relative">
+                <input
+                  type="text"
+                  placeholder="Engage with this story..."
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && submitComment()}
+                  className="w-full bg-secondary/40 rounded-2xl border border-border/50 px-4 py-2.5 text-[14px] text-foreground outline-none placeholder:text-muted-foreground/60 focus:bg-secondary/60 focus:border-primary/30 transition-all font-medium"
+                />
+                {commentText.trim() && (
+                  <button
+                    onClick={submitComment}
+                    disabled={submittingComment}
+                    className="absolute right-2 top-1.5 h-7 px-3 bg-primary text-primary-foreground rounded-lg font-bold text-[11px] uppercase tracking-wide disabled:opacity-50"
+                  >
+                    {submittingComment ? (
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                    ) : (
+                      "Post"
+                    )}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {loadingComments ? (
+              <div className="space-y-4">
+                {[1, 2].map((i) => (
+                  <div key={i} className="flex gap-3 animate-pulse">
+                    <div className="h-8 w-8 rounded-full bg-secondary" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-24 bg-secondary rounded" />
+                      <div className="h-3 w-full bg-secondary rounded" />
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+              </div>
+            ) : comments.length === 0 ? (
+              <div className="text-center py-8 rounded-2xl bg-secondary/20 border border-dashed border-border/50">
+                <p className="text-[13px] font-medium text-muted-foreground">
+                  No conversations yet. Start the discussion.
+                </p>
               </div>
             ) : (
-                <div className="space-y-16">
-                    {/* RELATED SECTION */}
-                    {relatedArticles.length > 0 ? (
-                        <div className="space-y-8">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {relatedArticles.map((article) => (
-                                    <div key={article.id} className="h-full">
-                                        <ArticleCardVertical article={article} />
-                                    </div>
-                                ))}
-                            </div>
-                            {hasMoreRelated && (
-                                <div className="text-center pt-4">
-                                    <button 
-                                        onClick={loadMoreRelated}
-                                        className="px-6 py-2.5 rounded-full bg-secondary/50 hover:bg-secondary text-sm font-bold text-foreground transition-all"
-                                    >
-                                        Load More Related Stories
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                    ) : (
-                        <p className="text-sm text-muted-foreground italic">No related stories found.</p>
-                    )}
-
-                    {/* TRENDING SECTION */}
-                    {(() => {
-                        const filteredTrending = trendingArticles.filter(t => !relatedArticles.some(r => r.id === t.id));
-                        if (filteredTrending.length === 0) return null;
-                        return (
-                            <div className="pt-8 border-t border-border/40">
-                                <h4 className="text-[18px] font-black tracking-tight text-foreground mb-8 flex items-center gap-2 font-serif">
-                                    <span className="w-1.5 h-6 bg-primary rounded-full" />
-                                    Trending News
-                                </h4>
-                                <div className="flex flex-col gap-4">
-                                    {filteredTrending.slice(0, trendingVisibleCount).map((article) => (
-                                        <div key={article.id} className="bg-card/30 rounded-2xl p-2 hover:bg-secondary/20 transition-colors">
-                                             <ArticleCardHorizontal article={article} />
-                                        </div>
-                                    ))}
-                                </div>
-                                {(hasMoreTrending || filteredTrending.length > trendingVisibleCount) && trendingVisibleCount >= 4 && (
-                                    <div className="text-center pt-8">
-                                        <button 
-                                            onClick={loadMoreTrending}
-                                            className="px-6 py-2.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-sm font-bold transition-all shadow-sm"
-                                        >
-                                            Load More Trending News
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })()}
-                </div>
+              <div className="space-y-6">
+                {comments.map((comment) => (
+                  <CommentItem
+                    key={comment.id}
+                    comment={comment}
+                    depth={0}
+                    articleId={id}
+                    token={token}
+                    currentUserId={user?.id || null}
+                    onReply={handleReply}
+                    onDelete={handleDeleteComment}
+                    onLike={handleLikeComment}
+                    onAuthRequired={() => setShowAuthModal(true)}
+                  />
+                ))}
+              </div>
             )}
           </div>
+        )}
+
+        {/* ── Section 12: Related Stories ── */}
+        <div className="mt-12 mb-20 px-1 border-t border-border/40 pt-10">
+          <h3 className="text-[18px] font-black tracking-tight text-foreground mb-6 flex items-center gap-2 font-serif">
+            <TrendingUp className="w-5 h-5 text-primary" />
+            Related Stories
+          </h3>
+
+          {loadingRelated ? (
+            <div className="space-y-8">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="group cursor-wait">
+                    <div className="aspect-[16/9] w-full bg-secondary rounded-2xl mb-3 overflow-hidden animate-pulse relative" />
+                    <div className="space-y-2">
+                      <div className="h-4 w-1/4 bg-secondary rounded-md animate-pulse" />
+                      <div className="h-5 w-full bg-secondary rounded-md animate-pulse" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-16">
+              {/* RELATED SECTION */}
+              {relatedArticles.length > 0 ? (
+                <div className="space-y-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {relatedArticles.map((article) => (
+                      <div key={article.id} className="h-full">
+                        <ArticleCardVertical article={article} />
+                      </div>
+                    ))}
+                  </div>
+                  {hasMoreRelated && (
+                    <div className="text-center pt-4">
+                      <button
+                        onClick={loadMoreRelated}
+                        className="px-6 py-2.5 rounded-full bg-secondary/50 hover:bg-secondary text-sm font-bold text-foreground transition-all"
+                      >
+                        Load More Related Stories
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">
+                  No related stories found.
+                </p>
+              )}
+
+              {/* TRENDING SECTION */}
+              {(() => {
+                const filteredTrending = trendingArticles.filter(
+                  (t) => !relatedArticles.some((r) => r.id === t.id),
+                );
+                if (filteredTrending.length === 0) return null;
+                return (
+                  <div className="pt-8 border-t border-border/40">
+                    <h4 className="text-[18px] font-black tracking-tight text-foreground mb-8 flex items-center gap-2 font-serif">
+                      <span className="w-1.5 h-6 bg-primary rounded-full" />
+                      Trending News
+                    </h4>
+                    <div className="flex flex-col gap-4">
+                      {filteredTrending
+                        .slice(0, trendingVisibleCount)
+                        .map((article) => (
+                          <div
+                            key={article.id}
+                            className="bg-card/30 rounded-2xl p-2 hover:bg-secondary/20 transition-colors"
+                          >
+                            <ArticleCardHorizontal article={article} />
+                          </div>
+                        ))}
+                    </div>
+                    {(hasMoreTrending ||
+                      filteredTrending.length > trendingVisibleCount) &&
+                      trendingVisibleCount >= 4 && (
+                        <div className="text-center pt-8">
+                          <button
+                            onClick={loadMoreTrending}
+                            className="px-6 py-2.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-sm font-bold transition-all shadow-sm"
+                          >
+                            Load More Trending News
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
         </div>
-        
-        <AuthPromptModal
-          isOpen={showAuthModal}
-          onClose={() => setShowAuthModal(false)}
-          onLogin={() => router.push(`/login?redirect=/article/${id}`)}
-        />
-      </AppShell>
+      </div>
+
+      <AuthPromptModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        onLogin={() => router.push(`/login?redirect=/article/${id}`)}
+      />
+    </AppShell>
   );
 }
 

@@ -9,10 +9,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { Request } from 'express';
+import type { Request } from 'express';
 import { AnalyticsService } from '../services/analytics.service';
 import { AnalyticsQueryService } from '../services/analytics-query.service';
-import { AnalyticsEvent } from '../modules/analytics/analytics.interface';
+import type { AnalyticsEvent } from '../modules/analytics/analytics.interface';
 
 /**
  * Analytics Controller

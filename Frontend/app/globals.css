@@ -151,3 +151,33 @@
   animation: gradient-flow 3s ease infinite;
   filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.3));
 }
+
+/* Toast Modal Overlay */
+.toast-overlay-active {
+  overflow: hidden;
+}
+
+.toast-overlay-active::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  z-index: 50;
+  pointer-events: auto;
+  animation: fade-in 0.2s ease-out;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Ensure Toast is above overlay */
+.Toastify__toast-container {
+  z-index: 9999 !important;
+}

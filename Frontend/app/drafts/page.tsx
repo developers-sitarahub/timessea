@@ -1,5 +1,8 @@
 "use client";
 
+import { toast } from "react-toastify";
+import { showConfirmDelete } from "@/lib/confirm-delete";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -83,51 +86,55 @@ export default function DraftsPage() {
     }
   };
 
-  const handleScheduledDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this scheduled post?"))
-      return;
-    try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      const res = await fetch(`${API_URL}/api/articles/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      if (res.ok) {
-        setScheduledPosts((prev) => prev.filter((p) => p.id !== id));
-      } else {
-        console.error("Failed to delete post");
+  const handleScheduledDelete = (id: string) => {
+    showConfirmDelete(async () => {
+      try {
+        const API_URL =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+        const res = await fetch(`${API_URL}/api/articles/${id}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        if (res.ok) {
+          setScheduledPosts((prev) => prev.filter((p) => p.id !== id));
+          toast.success("Scheduled post deleted successfully");
+        } else {
+          console.error("Failed to delete post");
+          toast.error("Failed to delete scheduled post");
+        }
+      } catch (error) {
+        console.error("Error deleting post:", error);
+        toast.error("An error occurred while deleting the post");
       }
-    } catch (error) {
-      console.error("Error deleting post:", error);
-    }
+    }, "Are you sure you want to delete this scheduled post?");
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this draft?")) return;
+  const handleDelete = (id: string) => {
+    showConfirmDelete(async () => {
+      setDeletingId(id);
+      try {
+        const API_URL =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+        const response = await fetch(`${API_URL}/api/articles/${id}`, {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-    setDeletingId(id);
-    try {
-      const API_URL =
-        process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
-      const response = await fetch(`${API_URL}/api/articles/${id}`, {
-        method: "DELETE",
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
+        if (!response.ok) throw new Error("Failed to delete draft");
 
-      if (!response.ok) throw new Error("Failed to delete draft");
-
-      setDrafts((prev) => prev.filter((draft) => draft.id !== id));
-    } catch (error) {
-      console.error("Error deleting draft:", error);
-      alert("Failed to delete draft. Please try again.");
-    } finally {
-      setDeletingId(null);
-    }
+        setDrafts((prev) => prev.filter((draft) => draft.id !== id));
+        toast.success("Draft deleted successfully");
+      } catch (error) {
+        console.error("Error deleting draft:", error);
+        toast.error("Failed to delete draft. Please try again.");
+      } finally {
+        setDeletingId(null);
+      }
+    }, "Are you sure you want to delete this draft?");
   };
 
   const formatDate = (dateString: string) => {
