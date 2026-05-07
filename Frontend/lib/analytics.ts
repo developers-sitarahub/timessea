@@ -18,6 +18,7 @@ export enum AnalyticsEventType {
   COMMENT = "comment",
   SHARE = "share",
   SAVE = "save",
+  UNSAVE = "unsave",
   SEARCH_QUERY = "search_query",
 }
 
@@ -39,10 +40,12 @@ const CLIENT_ID_KEY = "ts_client_id";
 class AnalyticsService {
   private queue: AnalyticsEvent[] = [];
   private isProcessing = false;
+  private currentUserId: string | null = null;
+  private currentLocation: string | null = null;
   private BATCH_SIZE = 5;
   private FLUSH_INTERVAL = 3000;
   private timer: NodeJS.Timeout | null = null;
-  private endpoint = `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000"}/analytics/track`;
+  private endpoint = `${process.env.NEXT_PUBLIC_API_URL}/analytics/track`;
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -81,6 +84,27 @@ class AnalyticsService {
   }
 
   /**
+   * Set User ID (called on login)
+   */
+  public setUserId(userId: string | null) {
+    this.currentUserId = userId;
+  }
+
+  /**
+   * Set User Location (called when geolocation detects or user picks a location)
+   */
+  public setLocation(location: string | null) {
+    this.currentLocation = location;
+  }
+
+  /**
+   * Get current location
+   */
+  public getLocation(): string | null {
+    return this.currentLocation;
+  }
+
+  /**
    * Track a single event
    */
   public track(event: AnalyticsEvent) {
@@ -88,11 +112,22 @@ class AnalyticsService {
     if (!event.client_id) {
       event.client_id = this.getClientId();
     }
+    if (this.currentUserId && !event.user_id) {
+      event.user_id = this.currentUserId;
+    }
     if (!event.device && typeof window !== "undefined") {
       event.device = this.getDeviceType();
     }
     if (!event.created_at) {
       event.created_at = new Date();
+    }
+
+    // Attach user location to metadata for geo distribution analytics
+    if (this.currentLocation) {
+      event.metadata = {
+        ...event.metadata,
+        location: this.currentLocation,
+      };
     }
 
     // Push to queue
@@ -129,7 +164,8 @@ class AnalyticsService {
         body: JSON.stringify({ events: batch }),
       });
     } catch (error) {
-      console.error("Analytics flush error:", error);
+      // Use warn to prevent Next.js dev overlay from catching this as an unhandled error
+      console.warn("Analytics flush failed (network error)");
       // Optional: Re-queue failed events (careful of loops)
     } finally {
       this.isProcessing = false;

@@ -8,12 +8,19 @@ import {
   ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import { analytics } from "@/lib/analytics";
 
 interface User {
   id: string;
   email: string;
   name: string;
   picture?: string;
+  coverImage?: string;
+  bio?: string;
+  handle?: string;
+  location?: string;
+  createdAt?: string;
+  role?: string;
 }
 
 interface AuthContextType {
@@ -29,12 +36,13 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshPromise, setRefreshPromise] = useState<Promise<string | null> | null>(null);
   const router = useRouter();
 
   const isAuthenticated = !!user && !!token;
@@ -59,45 +67,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isAuthenticated]);
 
   const refreshToken = async (): Promise<string | null> => {
-    try {
-      const response = await fetch(`${API_URL}/auth/refresh`, {
-        method: "POST",
-        credentials: "include", // Important: sends cookies
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setToken(data.access_token);
-        setUser(data.user);
-        return data.access_token;
-      } else {
-        // Refresh token invalid or expired
-        setUser(null);
-        setToken(null);
-        return null;
-      }
-    } catch (error) {
-      console.error("Token refresh failed:", error);
-      setUser(null);
-      setToken(null);
-      return null;
+    // If a refresh is already in progress, return that promise
+    if (refreshPromise) {
+      return refreshPromise;
     }
+
+    const performRefresh = async (): Promise<string | null> => {
+      try {
+        const response = await fetch(`${API_URL}/auth/refresh`, {
+          method: "POST",
+          credentials: "include", // Important: sends cookies
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setToken(data.access_token);
+          setUser(data.user);
+          analytics.setUserId(data.user.id);
+          return data.access_token;
+        } else {
+          // Refresh token invalid or expired
+          setToken(null);
+          setUser(null);
+          return null;
+        }
+      } catch (error) {
+        console.warn("Token refresh silent fail (network or session).");
+        return null;
+      } finally {
+        setRefreshPromise(null);
+      }
+    };
+
+    const newPromise = performRefresh();
+    setRefreshPromise(newPromise);
+    return newPromise;
   };
 
   const checkAuth = async (): Promise<boolean> => {
+    console.log("Checking authentication status...");
     try {
       // Try to refresh token using the httpOnly cookie
       const newToken = await refreshToken();
 
       if (newToken) {
+        console.log("Auth check successful: User authenticated via refresh token.");
         setIsLoading(false);
         return true;
       } else {
+        console.log("Auth check: No valid session found.");
         setIsLoading(false);
         return false;
       }
     } catch (error) {
-      console.error("Auth check failed:", error);
+      console.error("Auth check failed with error:", error);
       setIsLoading(false);
       return false;
     }
@@ -108,6 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Refresh token is in httpOnly cookie set by backend
     setToken(newToken);
     setUser(newUser);
+    setIsLoading(false);
+    analytics.setUserId(newUser.id);
   };
 
   const logout = async () => {
@@ -126,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setToken(null);
     setUser(null);
+    analytics.setUserId(null);
     router.push("/login");
   };
 

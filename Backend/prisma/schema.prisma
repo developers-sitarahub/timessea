@@ -1,4 +1,3 @@
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -8,20 +7,40 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Role {
+  USER
+  EDITOR
+  ADMIN
+  SUPERADMIN
+}
+
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
+  id            String          @id @default(uuid())
+  email         String          @unique
   name          String?
   picture       String?
-  googleId      String?        @unique
-  provider      String?        @default("google")
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  coverImage    String?
+  bio           String?
+  location      String?
+  handle        String?         @unique
+  googleId      String?         @unique
+  provider      String?         @default("google")
+  role          Role            @default(USER)
+  banned        Boolean         @default(false)
+  warnings      Int             @default(0)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   articles      Article[]
-  refreshTokens RefreshToken[]
+  articleLikes  ArticleLike[]
+  bookmarks     Bookmark[]
   comments      Comment[]
   commentLikes  CommentLike[]
-  articleLikes  ArticleLike[]
+  following     Follow[]        @relation("Following")
+  followers     Follow[]        @relation("Followers")
+  notifications Notification[]
+  refreshTokens RefreshToken[]
+  reviews       ArticleReview[]
+  topicFollows  TopicFollow[]
 }
 
 model RefreshToken {
@@ -37,46 +56,63 @@ model RefreshToken {
 }
 
 model Article {
-  id          String    @id @default(uuid())
-  title       String
-  content     String
-  authorId    String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  bookmarked  Boolean   @default(false)
-  category    String    @default("Technology")
-  excerpt     String?
-  location    String?
-  likes       Int       @default(0)
-  commentCount Int      @default(0)
-  readTime    Int       @default(5)
-  image       String?
-  views       Int       @default(0)
-  reads       Int       @default(0)
-  media       Json?
-  deletedAt   DateTime?
-
-  // Article metadata fields
-  subheadline    String?
-  type           String?   @default("News Article")
-  status         String?   @default("Draft")
-  imageCaption   String?
+  id               String          @id @default(uuid())
+  title            String
+  content          String
+  authorId         String
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  category         String          @default("Technology")
+  excerpt          String?
+  location         String?
+  likes            Int             @default(0)
+  commentCount     Int             @default(0)
+  readTime         Int             @default(5)
+  image            String?
+  views            Int             @default(0)
+  reads            Int             @default(0)
+  media            Json?
+  deletedAt        DateTime?
+  subheadline      String?
+  type             String?         @default("News Article")
+  status           String?         @default("Draft")
+  imageCaption     String?
   imageDescription String?
-  imageCredit    String?
-  seoTitle       String?
-  seoDescription String?
-  factChecked    Boolean   @default(false)
-
-  published   Boolean   @default(true)
-  scheduledAt DateTime?
-  author      User      @relation(fields: [authorId], references: [id])
-  comments    Comment[]
-  likedBy     ArticleLike[]
+  imageCredit      String?
+  seoTitle         String?
+  seoDescription   String?
+  factChecked      Boolean         @default(false)
+  published        Boolean         @default(false)
+  scheduledAt      DateTime?
+  author           User            @relation(fields: [authorId], references: [id])
+  likedBy          ArticleLike[]
+  bookmarkedBy     Bookmark[]
+  comments         Comment[]
+  notifications    Notification[]
+  reviews          ArticleReview[]
 
   @@index([authorId])
   @@index([category])
   @@index([createdAt])
   @@index([likes])
+  @@index([location])
+  @@index([status])
+  @@index([published, deletedAt, createdAt(sort: Desc)])
+}
+
+model ArticleReview {
+  id        String   @id @default(uuid())
+  articleId String
+  reviewerId String
+  status    String   // Approved, Rejected, NeedsCorrection
+  feedback  String?
+  createdAt DateTime @default(now())
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  reviewer  User     @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@index([reviewerId])
+  @@index([createdAt])
 }
 
 model ArticleLike {
@@ -84,30 +120,28 @@ model ArticleLike {
   userId    String
   articleId String
   createdAt DateTime @default(now())
-
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, articleId])
   @@index([articleId])
 }
 
 model Comment {
-  id        String    @id @default(uuid())
-  content   String
-  articleId String
-  authorId  String
-  parentId  String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  likes     Int       @default(0)
-  edited    Boolean   @default(false)
-  deletedAt DateTime?
-
-  article   Article   @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies   Comment[] @relation("CommentReplies")
+  id           String        @id @default(uuid())
+  content      String
+  articleId    String
+  authorId     String
+  parentId     String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  likes        Int           @default(0)
+  edited       Boolean       @default(false)
+  deletedAt    DateTime?
+  article      Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  author       User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent       Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies      Comment[]     @relation("CommentReplies")
   commentLikes CommentLike[]
 
   @@index([articleId])
@@ -122,9 +156,66 @@ model CommentLike {
   userId    String
   commentId String
   createdAt DateTime @default(now())
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, commentId])
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  articleId String
+  createdAt DateTime @default(now())
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([userId])
+  @@index([articleId])
+}
+
+model Notification {
+  id           String   @id @default(uuid())
+  userId       String
+  type         String
+  title        String
+  message      String
+  read         Boolean  @default(false)
+  articleId    String?
+  actorId      String?
+  actorName    String?
+  actorPicture String?
+  createdAt    DateTime @default(now())
+  article      Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model TopicFollow {
+  id        String   @id @default(uuid())
+  userId    String
+  category  String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+  @@index([userId])
+  @@index([category])
 }

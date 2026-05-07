@@ -2,12 +2,14 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from './prisma.service';
 import { AnalyticsService } from './analytics.service';
 import { AnalyticsEventType } from '../modules/analytics/analytics.interface';
+import { ArticlesGateway } from '../gateways/articles.gateway';
 
 @Injectable()
 export class CommentsService {
   constructor(
     private prisma: PrismaService,
     private analyticsService: AnalyticsService,
+    private articlesGateway: ArticlesGateway,
   ) {}
 
   /**
@@ -41,10 +43,15 @@ export class CommentsService {
         },
       });
 
-      await tx.article.update({
+      const updatedArticle = await tx.article.update({
         where: { id: data.articleId },
         data: { commentCount: { increment: 1 } },
       });
+
+      this.articlesGateway.notifyCommentCountUpdate(
+        data.articleId,
+        updatedArticle.commentCount,
+      );
 
       // Track comment event
       this.analyticsService.track({
@@ -53,6 +60,31 @@ export class CommentsService {
         user_id: data.authorId,
         created_at: new Date(),
       });
+
+      // Create notification for article author (if not self)
+      const article = await tx.article.findUnique({
+        where: { id: data.articleId },
+        select: { authorId: true, title: true },
+      });
+      if (article && article.authorId !== data.authorId) {
+        const actor = await tx.user.findUnique({
+          where: { id: data.authorId },
+          select: { name: true, picture: true },
+        });
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        await (tx as any).notification.create({
+          data: {
+            userId: article.authorId,
+            type: 'comment',
+            title: 'New Comment',
+            message: `${actor?.name || 'Someone'} commented on your article "${article.title}"`,
+            articleId: data.articleId,
+            actorId: data.authorId,
+            actorName: actor?.name || null,
+            actorPicture: actor?.picture || null,
+          },
+        });
+      }
 
       return comment;
     });
@@ -171,8 +203,10 @@ export class CommentsService {
       },
     });
 
+    let updatedComment;
+
     if (existing) {
-      return this.prisma.$transaction(async (tx) => {
+      updatedComment = await this.prisma.$transaction(async (tx) => {
         await tx.commentLike.delete({
           where: { id: existing.id },
         });
@@ -182,7 +216,7 @@ export class CommentsService {
         });
       });
     } else {
-      return this.prisma.$transaction(async (tx) => {
+      updatedComment = await this.prisma.$transaction(async (tx) => {
         await tx.commentLike.create({
           data: { userId, commentId },
         });
@@ -192,6 +226,16 @@ export class CommentsService {
         });
       });
     }
+
+    if (this.articlesGateway) {
+      this.articlesGateway.notifyCommentLiked(
+        updatedComment.id,
+        updatedComment.likes,
+        updatedComment.articleId,
+      );
+    }
+
+    return updatedComment;
   }
 
   /**
@@ -251,10 +295,15 @@ export class CommentsService {
       });
 
       // Decrement article comment count by total number of deleted comments
-      await tx.article.update({
+      const updatedArticle = await tx.article.update({
         where: { id: comment.articleId },
         data: { commentCount: { decrement: allToDelete.length } },
       });
+
+      this.articlesGateway.notifyCommentCountUpdate(
+        comment.articleId,
+        updatedArticle.commentCount,
+      );
 
       return comment;
     });

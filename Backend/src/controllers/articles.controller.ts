@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Post,
+  Patch,
   Body,
   Param,
   Put,
@@ -16,10 +17,13 @@ import { ArticlesService } from '../services/articles.service';
 import { CreateArticleDto } from '../modules/articles/dto/create-article.dto';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '../generated/prisma/client';
+import { Roles } from '../common/decorators/roles.decorator';
+import { RolesGuard } from '../common/guards/roles.guard';
 
 interface JwtPayload {
   sub: string;
   email: string;
+  role?: string;
 }
 
 @Controller('api/articles')
@@ -39,7 +43,7 @@ export class ArticlesController {
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
       try {
-        const decoded = this.jwtService.verify(token);
+        const decoded = this.jwtService.verify(token) as JwtPayload;
         return decoded.sub;
       } catch {
         // Ignore invalid token
@@ -55,14 +59,110 @@ export class ArticlesController {
 
   @Get('drafts')
   @UseGuards(AuthGuard('jwt'))
-  async getDrafts(@Req() req: Request & { user: { id: string } }) {
-    return this.articlesService.findDrafts(req.user.id);
+  async getDrafts(@Req() req: Request) {
+    const userId = (req as any).user?.id as string || this.getUserIdFromRequest(req);
+    return this.articlesService.findDrafts(userId);
   }
 
   @Get('user/published')
   @UseGuards(AuthGuard('jwt'))
-  async getPublishedArticles(@Req() req: Request & { user: { id: string } }) {
-    return this.articlesService.findPublished(req.user.id);
+  async getPublishedArticles(@Req() req: Request) {
+    const userId = (req as any).user?.id as string || this.getUserIdFromRequest(req);
+    return this.articlesService.findPublished(userId);
+  }
+
+  @Get('user/bookmarks')
+  @UseGuards(AuthGuard('jwt'))
+  async getUserBookmarks(@Req() req: Request) {
+    const userId = (req as any).user?.id as string || this.getUserIdFromRequest(req);
+    return this.articlesService.findUserBookmarks(userId as string);
+  }
+
+  // ==================== ADMIN REVIEW ENDPOINTS ====================
+
+  @Get('admin/pending')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN', 'SUPERADMIN')
+  async getPendingReviews(
+    @Req() req: Request,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const userRole = (req as any).user?.role as string;
+    console.log(`ArticlesController: getPendingReviews called by user with role: ${userRole}`);
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    return (this.articlesService as any).findPendingReviews(
+      limitNum,
+      offsetNum,
+      userRole,
+    );
+  }
+
+  @Get('admin/stats')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN', 'SUPERADMIN')
+  async getAdminStats(@Req() req: Request) {
+    const userId = (req as any).user?.id as string || this.getUserIdFromRequest(req);
+    const userRole = (req as any).user?.role as string;
+    return this.articlesService.getAdminDashboardStats(userId as string, userRole);
+  }
+
+
+
+  @Get('admin/rejected')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN', 'SUPERADMIN')
+  async getRejectedArticles(
+    @Req() req: Request,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const userRole = (req as any).user?.role as string;
+    const limitNum = limit ? parseInt(limit, 10) : 20;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    return (this.articlesService as any).findRejectedArticles(limitNum, offsetNum, userRole);
+  }
+
+  @Get('admin/published')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('SUPERADMIN')
+  async getAdminPublishedArticles(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) : 50;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    return (this.articlesService as any).findAdminPublished(limitNum, offsetNum);
+  }
+
+  @Delete('admin/:id')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('SUPERADMIN')
+  async adminRemoveArticle(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { id: string } },
+  ) {
+    return (this.articlesService as any).adminRemove(id, req.user.id);
+  }
+
+  @Get('trending/all')
+  @Get('trending/all')
+  async findTrending(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('excludeId') excludeId?: string,
+    @Req() req?: Request,
+  ) {
+    const limitNum = limit ? parseInt(limit, 10) : 4;
+    const offsetNum = offset ? parseInt(offset, 10) : 0;
+    const userId = this.getUserIdFromRequest(req);
+    return this.articlesService.findTrending(
+      limitNum,
+      offsetNum,
+      excludeId,
+      userId,
+    );
   }
 
   @Get()
@@ -70,6 +170,10 @@ export class ArticlesController {
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
     @Query('hasMedia') hasMedia?: string,
+    @Query('authorId') authorId?: string,
+    @Query('location') location?: string,
+    @Query('feed') feed?: string,
+    @Query('query') query?: string,
     @Req() req?: Request,
   ) {
     const limitNum = limit ? parseInt(limit, 10) : 20;
@@ -78,7 +182,6 @@ export class ArticlesController {
 
     let userId: string | undefined;
     const authHeader = req?.headers?.authorization;
-    // console.log('Auth Header:', authHeader); // Debug log
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.split(' ')[1];
@@ -95,6 +198,10 @@ export class ArticlesController {
       offsetNum,
       hasMediaBool,
       userId,
+      authorId,
+      location,
+      feed,
+      query,
     );
   }
 
@@ -116,20 +223,6 @@ export class ArticlesController {
     const offsetNum = offset ? parseInt(offset, 10) : 0;
     const userId = this.getUserIdFromRequest(req);
     return this.articlesService.findRelated(id, limitNum, offsetNum, userId);
-  }
-
-  @Get('trending/all')
-  @Get('trending/all')
-  async findTrending(
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-    @Query('excludeId') excludeId?: string,
-    @Req() req?: Request,
-  ) {
-    const limitNum = limit ? parseInt(limit, 10) : 4;
-    const offsetNum = offset ? parseInt(offset, 10) : 0;
-    const userId = this.getUserIdFromRequest(req);
-    return this.articlesService.findTrending(limitNum, offsetNum, excludeId, userId);
   }
 
   @Put(':id')
@@ -156,8 +249,12 @@ export class ArticlesController {
   }
 
   @Post(':id/bookmark')
-  async toggleBookmark(@Param('id') id: string) {
-    return await this.articlesService.toggleBookmark(id);
+  @UseGuards(AuthGuard('jwt'))
+  async toggleBookmark(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { id: string } },
+  ) {
+    return await this.articlesService.toggleBookmark(id, req.user.id);
   }
 
   @Post(':id/view')
@@ -182,4 +279,33 @@ export class ArticlesController {
   async syncCounts() {
     return this.articlesService.backfillCommentCounts();
   }
+
+  // ==================== REVIEW ENDPOINTS ====================
+
+  @Patch(':id/submit-review')
+  @UseGuards(AuthGuard('jwt'))
+  async submitForReview(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { id: string } },
+  ) {
+    return this.articlesService.submitForReview(id, req.user.id);
+  }
+
+  @Post(':id/review')
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles('ADMIN', 'SUPERADMIN')
+  async reviewArticle(
+    @Param('id') id: string,
+    @Req() req: Request & { user: { id: string } },
+    @Body() body: { decision: 'Approved' | 'Rejected' | 'NeedsCorrection'; feedback?: string },
+  ) {
+    return (this.articlesService as any).reviewArticle(
+      id,
+      req.user.id,
+      (req as any).user?.role,
+      body.decision,
+      body.feedback,
+    );
+  }
 }
+

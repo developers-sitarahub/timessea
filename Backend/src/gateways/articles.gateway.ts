@@ -36,4 +36,24 @@ export class ArticlesGateway
   notifyArticleViewed(articleId: string, views: number) {
     this.server.emit('articleViewed', { articleId, views });
   }
+
+  notifyArticleLiked(articleId: string, likes: number) {
+    this.server.emit('articleLiked', { articleId, likes });
+  }
+
+  notifyCommentLiked(commentId: string, likes: number, articleId: string) {
+    this.server.emit('commentLiked', { commentId, likes, articleId });
+  }
+
+  notifyCommentCountUpdate(articleId: string, commentCount: number) {
+    this.server.emit('commentCountUpdate', { articleId, commentCount });
+  }
+
+  notifyArticlePublished(article: any) {
+    this.server.emit('articlePublished', article);
+  }
+
+  notifyNewSubmission(article: any) {
+    this.server.emit('newSubmission', article);
+  }
 }

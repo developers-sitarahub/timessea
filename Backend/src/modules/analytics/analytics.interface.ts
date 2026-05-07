@@ -18,6 +18,7 @@ export enum AnalyticsEventType {
   COMMENT_DELETED = 'comment_deleted',
   SHARE = 'share',
   SAVE = 'save',
+  UNSAVE = 'unsave',
   REPORT = 'report',
 
   // User Events
@@ -89,7 +90,7 @@ export interface PostAnalytics {
   shares: number;
   engagement_rate: number;
   geo_distribution?: Array<{
-    location_id: number;
+    location: string;
     count: number;
   }>;
 }

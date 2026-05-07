@@ -1,12 +1,13 @@
 "use client";
 import { useAuth } from "@/contexts/AuthContext";
 
-import { use, useState, useEffect, useCallback } from "react";
+import { use, useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Heart,
+  Bookmark,
   MessageCircle,
   Share2,
   MoreHorizontal,
@@ -27,12 +28,19 @@ import { toast } from "react-toastify";
 import type { Article } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { AppShell } from "@/components/app-shell";
+import { AuthPromptModal } from "@/components/auth-prompt-modal";
 import {
   ArticleCardVertical,
   ArticleCardHorizontal,
 } from "@/components/article-card";
+import { TopicFollowButton } from "@/components/topic-follow-button";
+import { analytics, AnalyticsEventType } from "@/lib/analytics";
+import { globalSocket } from "@/lib/socket";
+import { ArticleTakeaways } from "@/components/article-takeaways";
+import { ArticleTTSPlayer } from "@/components/article-tts-player";
+import { ReadingModeSwitcher, getReadingModeClasses, applySpeedReadHighlights, type ReadingMode } from "@/components/reading-mode-switcher";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 // ─── Comment Types ─────────────────────────────────────────────
 interface CommentType {
@@ -280,25 +288,75 @@ export default function ArticlePage({
   const [trendingVisibleCount, setTrendingVisibleCount] = useState(4);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [isDeletingComment, setIsDeletingComment] = useState(false);
-
-  // Delayed read counting (1 minute threshold for "read")
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+  const [readingMode, setReadingMode] = useState<ReadingMode>("standard");
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+  const readSentinelRef = useRef<HTMLDivElement>(null);
+  const hasTrackedRead = useRef(false);
+  // Close menu on click outside & track scroll
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetch(`${API_URL}/api/articles/${id}/read`, {
-        method: "POST",
-      })
-        .then(
-          (res) =>
-            res.ok &&
-            setArticle((prev) =>
-              prev ? { ...prev, reads: (prev.reads || 0) + 1 } : null,
-            ),
-        )
-        .catch((err) => console.error("Failed to increment read", err));
-    }, 60000); // 60 seconds
+    const handleClickOutside = (event: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    };
 
-    return () => clearTimeout(timer);
-  }, [id]);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.body.classList.remove("focus-mode-active");
+    };
+  }, []);
+
+  // Track read event based on scroll or time
+  useEffect(() => {
+    // 1. Time-based fallback (1 minute)
+    const timer = setTimeout(() => {
+      if (!hasTrackedRead.current) {
+        hasTrackedRead.current = true;
+        analytics.track({
+          event: AnalyticsEventType.POST_READ,
+          post_id: id,
+          user_id: user?.id,
+        });
+
+        // Legacy support
+        fetch(`${API_URL}/api/articles/${id}/read`, { method: "POST" }).catch(() => {});
+      }
+    }, 60000);
+
+    // 2. Scroll-based tracking
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && !hasTrackedRead.current) {
+          hasTrackedRead.current = true;
+          analytics.track({
+            event: AnalyticsEventType.POST_READ,
+            post_id: id,
+            user_id: user?.id,
+          });
+
+          // Legacy support
+          fetch(`${API_URL}/api/articles/${id}/read`, { method: "POST" }).catch(() => {});
+          
+          // Cleanup observer once tracked
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (readSentinelRef.current) {
+      observer.observe(readSentinelRef.current);
+    }
+
+    return () => {
+      clearTimeout(timer);
+      observer.disconnect();
+    };
+  }, [id, user?.id]);
 
   useEffect(() => {
     if (deletingCommentId) {
@@ -309,15 +367,73 @@ export default function ArticlePage({
     return () => document.body.classList.remove("toast-overlay-active");
   }, [deletingCommentId]);
 
+  const [refreshCommentsTrigger, setRefreshCommentsTrigger] = useState(0);
+
+  // Real-time updates via Socket.IO
+  useEffect(() => {
+    const handleArticleLiked = (data: { articleId: string; likes: number }) => {
+      if (data.articleId === id) {
+        setArticle((prev) => prev ? { ...prev, likes: data.likes } : null);
+      }
+    };
+
+    const handleCommentCountUpdate = (data: { articleId: string; commentCount: number }) => {
+      if (data.articleId === id) {
+        setCommentCount(data.commentCount);
+        setRefreshCommentsTrigger((prev) => prev + 1);
+      }
+    };
+
+    const handleCommentLiked = (data: { commentId: string; likes: number; articleId: string }) => {
+      if (data.articleId === id) {
+        setComments((prevComments) => {
+          const updateComments = (list: CommentType[]): CommentType[] => {
+            return list.map((c) => {
+              if (c.id === data.commentId) {
+                return { ...c, likes: data.likes };
+              }
+              if (c.replies && c.replies.length > 0) {
+                return { ...c, replies: updateComments(c.replies) };
+              }
+              return c;
+            });
+          };
+          return updateComments(prevComments);
+        });
+      }
+    };
+
+    globalSocket.on("articleLiked", handleArticleLiked);
+    globalSocket.on("commentCountUpdate", handleCommentCountUpdate);
+    globalSocket.on("commentLiked", handleCommentLiked);
+
+    return () => {
+      globalSocket.off("articleLiked", handleArticleLiked);
+      globalSocket.off("commentCountUpdate", handleCommentCountUpdate);
+      globalSocket.off("commentLiked", handleCommentLiked);
+    };
+  }, [id]);
+
+  // Track VIEW event
+  useEffect(() => {
+    if (id) {
+      analytics.track({
+        event: AnalyticsEventType.POST_VIEW,
+        post_id: id,
+        user_id: user?.id,
+      });
+
+      // Legacy support
+      fetch(`${API_URL}/api/articles/${id}/view`, { method: "POST" }).catch(
+        () => {},
+      );
+    }
+  }, [id, user?.id]);
+
   // Fetch article
   useEffect(() => {
     async function fetchArticle() {
       try {
-        // Increment view immediately
-        fetch(`${API_URL}/api/articles/${id}/view`, { method: "POST" }).catch(
-          () => {},
-        );
-
         const headers: HeadersInit = {};
         if (token) {
           headers["Authorization"] = `Bearer ${token}`;
@@ -327,6 +443,14 @@ export default function ArticlePage({
         if (res.ok) {
           const data = await res.json();
           setArticle(data);
+
+          // Fetch follow status if user is logged in
+          if (token && data.author?.id) {
+            fetch(`${API_URL}/users/${data.author.id}/follow-status`, { headers })
+              .then((r) => r.ok ? r.json() : { following: false })
+              .then((d) => setIsFollowing(d.following))
+              .catch(() => setIsFollowing(false));
+          }
 
           // View count removed from here - handled by delayed timer
         } else {
@@ -361,22 +485,28 @@ export default function ArticlePage({
         );
         if (resRelated.ok) {
           const data = await resRelated.json();
-          setRelatedArticles(data);
-          if (data.length < 4) setHasMoreRelated(false);
-          setRelatedOffset(4);
+          // Filter out duplicates if any
+          const uniqueData = data.filter((item: Article, index: number, self: Article[]) => 
+            index === self.findIndex((t) => t.id === item.id)
+          );
+          setRelatedArticles(uniqueData);
+          if (uniqueData.length < 4) setHasMoreRelated(false);
+          setRelatedOffset(uniqueData.length);
         }
 
         // Fetch initial Trending (Limit 4)
-        // Note: pass excludeId={id} to filter current viewing article from trending list
-        // Fetch 10 initially to have a buffer after filtering related ones
         const resTrending = await fetch(
           `${API_URL}/api/articles/trending/all?limit=10&offset=0&excludeId=${id}`,
         );
         if (resTrending.ok) {
           const data = await resTrending.json();
-          setTrendingArticles(data);
-          if (data.length < 10) setHasMoreTrending(false);
-          setTrendingOffset(10);
+          // Filter out duplicates
+          const uniqueData = data.filter((item: Article, index: number, self: Article[]) => 
+            index === self.findIndex((t) => t.id === item.id)
+          );
+          setTrendingArticles(uniqueData);
+          if (uniqueData.length < 10) setHasMoreTrending(false);
+          setTrendingOffset(uniqueData.length);
         }
       } catch (err) {
         console.error(err);
@@ -397,8 +527,11 @@ export default function ArticlePage({
       if (res.ok) {
         const data = await res.json();
         if (data.length > 0) {
-          setRelatedArticles((prev) => [...prev, ...data]);
-          setRelatedOffset((prev) => prev + 4);
+          setRelatedArticles((prev) => {
+            const newArticles = data.filter((item: Article) => !prev.some((p) => p.id === item.id));
+            return [...prev, ...newArticles];
+          });
+          setRelatedOffset((prev) => prev + data.length);
           if (data.length < 4) setHasMoreRelated(false);
         } else {
           setHasMoreRelated(false);
@@ -414,7 +547,6 @@ export default function ArticlePage({
       (t) => !relatedArticles.some((r) => r.id === t.id),
     );
 
-    // If we have more articles already fetched but not shown, show them first
     if (trendingVisibleCount < filteredTrending.length) {
       setTrendingVisibleCount((prev) => prev + 4);
       return;
@@ -429,8 +561,11 @@ export default function ArticlePage({
       if (res.ok) {
         const data = await res.json();
         if (data.length > 0) {
-          setTrendingArticles((prev) => [...prev, ...data]);
-          setTrendingOffset((prev) => prev + 4);
+          setTrendingArticles((prev) => {
+            const newArticles = data.filter((item: Article) => !prev.some((p) => p.id === item.id));
+            return [...prev, ...newArticles];
+          });
+          setTrendingOffset((prev) => prev + data.length);
           setTrendingVisibleCount((prev) => prev + 4);
           if (data.length < 4) setHasMoreTrending(false);
         } else {
@@ -442,9 +577,45 @@ export default function ArticlePage({
     }
   };
 
+  const handleFollowToggle = async () => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (!article?.author?.id) return;
+
+    if (user?.id === article.author.id) {
+      toast.error("You cannot follow yourself");
+      return;
+    }
+
+    setIsFollowLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/users/${article.author.id}/follow`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setIsFollowing(data.following);
+        toast.success(data.following ? `Following ${article.author.name}` : `Unfollowed ${article.author.name}`);
+      } else {
+        toast.error("Failed to update follow status");
+      }
+    } catch (e) {
+      toast.error("Failed to update follow status");
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
+
   // Fetch comments
-  const fetchComments = useCallback(async () => {
-    setLoadingComments(true);
+  // Fetch comments
+  const fetchComments = useCallback(async (background = false) => {
+    if (!background) setLoadingComments(true);
     try {
       const headers: HeadersInit = {};
       if (token) {
@@ -468,20 +639,28 @@ export default function ArticlePage({
             return acc + countReplies(c);
           }, 0),
         );
+      } else {
+        throw new Error("Failed to fetch comments");
       }
     } catch (err) {
       console.error("Failed to fetch comments", err);
     } finally {
-      setLoadingComments(false);
+      if (!background) setLoadingComments(false);
     }
   }, [id, token]);
 
-  // Load comments when section opens
+  // Load comments when section is opened
   useEffect(() => {
     if (showCommentSection) {
-      fetchComments();
+      fetchComments(false);
     }
   }, [showCommentSection, fetchComments]);
+
+  useEffect(() => {
+    if (showCommentSection && refreshCommentsTrigger > 0) {
+      fetchComments(true);
+    }
+  }, [refreshCommentsTrigger, showCommentSection, fetchComments]);
 
   const handleLike = async () => {
     if (!isAuthenticated) {
@@ -500,6 +679,13 @@ export default function ArticlePage({
       ...article,
       liked: willLike,
       likes: willLike ? originalLikes + 1 : Math.max(0, originalLikes - 1),
+    });
+
+    // Track analytics
+    analytics.track({
+      event: willLike ? AnalyticsEventType.LIKE : ("unlike" as any),
+      post_id: id,
+      user_id: user?.id,
     });
 
     try {
@@ -523,7 +709,66 @@ export default function ArticlePage({
     }
   };
 
+  const handleBookmark = async () => {
+    if (!isAuthenticated) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (!article) return;
+
+    const originalBookmarked = article.bookmarked;
+    const willBookmark = !originalBookmarked;
+
+    // Optimistic update
+    setArticle({
+      ...article,
+      bookmarked: willBookmark,
+    });
+
+    // Track analytics
+    analytics.track({
+      event: willBookmark ? AnalyticsEventType.SAVE : AnalyticsEventType.UNSAVE,
+      post_id: id,
+      user_id: user?.id,
+    });
+
+    try {
+      const headers: HeadersInit = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(`${API_URL}/api/articles/${id}/bookmark`, {
+        method: "POST",
+        headers,
+      });
+
+      if (res.ok) {
+        toast.success(willBookmark ? "Story saved to bookmarks" : "Story removed from bookmarks", {
+          position: "bottom-center",
+          autoClose: 2000,
+          hideProgressBar: true,
+          theme: "dark"
+        });
+      }
+    } catch (e) {
+      console.error("Failed to bookmark", e);
+      // Revert logic
+      setArticle({
+        ...article,
+        bookmarked: originalBookmarked,
+      });
+    }
+  };
+
   const handleShare = async () => {
+    // Track share in analytics
+    analytics.track({
+      event: AnalyticsEventType.SHARE,
+      post_id: id,
+      user_id: user?.id,
+    });
+
     if (navigator.share) {
       try {
         await navigator.share({
@@ -564,7 +809,15 @@ export default function ArticlePage({
       });
       if (res.ok) {
         setCommentText("");
-        await fetchComments();
+        
+        // Track analytics
+        analytics.track({
+          event: AnalyticsEventType.COMMENT,
+          post_id: id,
+          user_id: user?.id,
+        });
+
+        await fetchComments(true);
       }
     } catch (e) {
       console.error("Failed to submit comment", e);
@@ -586,7 +839,7 @@ export default function ArticlePage({
         body: JSON.stringify({ content, articleId: id, parentId }),
       });
       if (res.ok) {
-        await fetchComments();
+        await fetchComments(true);
       }
     } catch (e) {
       console.error("Failed to reply", e);
@@ -594,7 +847,7 @@ export default function ArticlePage({
   };
 
   // Delete a comment trigger
-  const handleDeleteComment = (commentId: string) => {
+  const handleDeleteComment = async (commentId: string) => {
     setDeletingCommentId(commentId);
   };
 
@@ -833,6 +1086,7 @@ export default function ArticlePage({
 
   return (
     <AppShell>
+      {/* ── Section 1: Navigation + Mode Toggle ── */}
       {/* Share Toast */}
       {showShareToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] bg-foreground text-background px-4 py-2 rounded-full text-xs font-semibold shadow-xl animate-in fade-in slide-in-from-top-2 duration-300">
@@ -854,32 +1108,83 @@ export default function ArticlePage({
           />
         </button>
 
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5 relative">
           <button
             type="button"
             onClick={handleShare}
             aria-label="Share"
-            className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+            className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors hover:bg-secondary/50"
           >
             <Share2 className="h-5 w-5" strokeWidth={1.8} />
           </button>
           <button
             type="button"
-            aria-label="More options"
-            className="p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+            onClick={handleBookmark}
+            aria-label="Bookmark"
+            className={cn(
+              "p-2 rounded-full transition-all duration-300",
+              article?.bookmarked 
+                ? "text-primary bg-primary/5 shadow-[0_0_15px_rgba(var(--primary),0.1)]" 
+                : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+            )}
           >
-            <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />
+            <Bookmark className={cn("h-5 w-5", article?.bookmarked && "fill-current")} strokeWidth={1.8} />
           </button>
+          
+          <div ref={moreMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+              aria-label="More options"
+              className={cn(
+                "p-2 rounded-full text-muted-foreground hover:text-foreground transition-colors",
+                showMoreMenu ? "bg-secondary text-foreground" : "hover:bg-secondary/50"
+              )}
+            >
+              <MoreHorizontal className="h-5 w-5" strokeWidth={1.8} />
+            </button>
+
+            {showMoreMenu && (
+              <div className="absolute right-0 top-full mt-2 w-48 bg-card border border-border shadow-2xl rounded-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200">
+                <div className="py-1.5">
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(window.location.href);
+                      toast.info("Link copied to clipboard");
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm font-semibold hover:bg-secondary transition-colors flex items-center gap-2"
+                  >
+                    <Share2 className="w-4 h-4" />
+                    Copy Link
+                  </button>
+                  <button 
+                    onClick={() => {
+                      toast.info("Thank you for your feedback");
+                      setShowMoreMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm font-semibold text-red-500 hover:bg-red-500/5 transition-colors flex items-center gap-2"
+                  >
+                    <AlertTriangle className="w-4 h-4" />
+                    Report Story
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
       {/* Article Content — The Hindu Layout */}
       <div className="pb-8 pt-5">
         {/* ── Section 1: Category Badge ── */}
-        <div className="mb-3 px-1">
+        <div className="mb-3 px-1 flex items-center justify-between">
           <span className="inline-block text-[11px] font-black tracking-[0.2em] text-red-600 dark:text-red-400 uppercase border-b-2 border-red-600 dark:border-red-400 pb-0.5">
             {article.category || "NEWS"}
           </span>
+          {article.category && (
+            <TopicFollowButton category={article.category} variant="pill" className="h-7" />
+          )}
         </div>
 
         {/* ── Section 2: HEADING (Title) ── */}
@@ -905,7 +1210,7 @@ export default function ArticlePage({
         <div className="mb-5 px-1">
           {/* Author Info */}
           <div className="flex items-center gap-3 mb-3">
-            <div className="h-10 w-10 overflow-hidden rounded-full ring-2 ring-border/50 shrink-0">
+            <Link href={user?.id === article.author?.id ? "/profile" : `/user/${article.author?.id}`} className="block h-10 w-10 overflow-hidden rounded-full ring-2 ring-border/50 shrink-0 hover:opacity-80 transition-opacity">
               {article.author?.picture ? (
                 <img
                   src={article.author.picture}
@@ -918,14 +1223,16 @@ export default function ArticlePage({
                   {article.author?.name?.charAt(0)}
                 </div>
               )}
-            </div>
+            </Link>
             <div className="flex-1 min-w-0">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-0.5">
                 WRITTEN BY
               </p>
-              <h3 className="font-bold text-foreground text-sm leading-tight">
-                {article.author?.name || "Times Sea Bureau"}
-              </h3>
+              <Link href={user?.id === article.author?.id ? "/profile" : `/user/${article.author?.id}`} className="hover:underline hover:text-primary transition-colors block">
+                <h3 className="font-bold text-foreground text-sm leading-tight inline relative">
+                  {article.author?.name || "Times Sea Bureau"}
+                </h3>
+              </Link>
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mt-0.5">
                 {article.location && (
                   <>
@@ -947,81 +1254,116 @@ export default function ArticlePage({
                 )}
               </div>
             </div>
-            <button className="rounded-full px-4 py-1.5 text-[11px] font-bold text-primary ring-1 ring-primary/30 hover:bg-primary/5 transition-colors shrink-0">
-              Follow
-            </button>
+            {user?.id !== article.author?.id && (
+              <button
+                onClick={handleFollowToggle}
+                disabled={isFollowLoading}
+                className={cn(
+                  "rounded-full px-4 py-1.5 text-[11px] font-bold transition-all shrink-0",
+                  isFollowing
+                    ? "bg-secondary text-foreground hover:bg-secondary/80 ring-1 ring-border"
+                    : "text-primary ring-1 ring-primary/30 hover:bg-primary/5",
+                  isFollowLoading && "opacity-50 cursor-not-allowed"
+                )}
+              >
+                {isFollowLoading ? "..." : isFollowing ? "Following" : "Follow"}
+              </button>
+            )}
           </div>
 
           {/* ── Metadata Bar (Read Time, Views, Date) ── */}
-          <div className="flex items-center gap-3 py-2.5 border-y border-border/40 text-[12px] text-muted-foreground">
-            <span className="flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5" />
-              {article.readTime} min read
-            </span>
-            <span className="text-border">|</span>
-            <span>
-              Updated {formatDate(article.createdAt || article.publishedAt)}
-            </span>
+          <div className="flex items-center justify-between py-2.5 border-y border-border/40 text-[12px] text-muted-foreground">
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                {article.readTime} min read
+              </span>
+              <span className="text-border">|</span>
+              <span>
+                Updated {formatDate(article.createdAt || article.publishedAt)}
+              </span>
+            </div>
+            <ReadingModeSwitcher
+              currentMode={readingMode}
+              onModeChange={(mode) => {
+                setReadingMode(mode);
+                if (mode === "focus") {
+                  document.body.classList.add("focus-mode-active");
+                } else {
+                  document.body.classList.remove("focus-mode-active");
+                }
+              }}
+            />
           </div>
         </div>
 
         {/* ── Section 6: COVER IMAGE with Caption ── */}
-        <figure className="mb-10 -mx-5 bg-secondary/5">
-          <div className="w-full overflow-hidden bg-secondary relative aspect-16/10 sm:aspect-[21/9]">
-            {article.image ? (
+        {article.image && (
+          <figure className="mb-10 -mx-5 bg-secondary/5">
+            <div className="w-full overflow-hidden bg-black relative aspect-16/10 sm:aspect-[21/9] flex items-center justify-center">
               <img
                 src={article.image}
                 alt={article.imageCaption || article.title}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-secondary to-muted">
-                <div className="text-7xl font-black text-foreground/5 select-none font-serif">
-                  {article.title.charAt(0)}
+            </div>
+            {/* Image Caption — The Hindu style */}
+            <figcaption className="mt-4 px-5">
+              <div className="text-[12px] leading-relaxed text-muted-foreground flex items-center flex-wrap gap-x-2.5">
+                {(article.imageDescription || article.imageCaption) && (
+                  <>
+                    <span className="font-semibold italic text-foreground/90 lowercase first-letter:uppercase">
+                      {(() => {
+                        const desc = article.imageDescription || article.imageCaption || "";
+                        // Strip any HTML tags that might have been pasted (e.g. from rich text editor)
+                        return desc.replace(/<[^>]*>?/gm, "").trim();
+                      })()}
+                    </span>
+                    <span className="text-border/80 font-light px-1">|</span>
+                  </>
+                )}
+                <div className="flex items-center gap-1.5">
+                  <span className="font-black text-muted-foreground/40 uppercase text-[9px] tracking-[0.2em] shrink-0">
+                    PHOTO:
+                  </span>
+                  <span className="font-semibold text-muted-foreground shrink-0">
+                    {article.imageCredit || article.author?.name || "Special Arrangement"}
+                  </span>
                 </div>
               </div>
-            )}
-          </div>
-          {/* Image Caption — The Hindu style */}
-          <figcaption className="mt-4 px-5">
-            <div className="text-[12px] leading-relaxed text-muted-foreground flex items-center flex-wrap gap-x-2.5">
-              {(article.imageDescription || article.imageCaption) && (
-                <>
-                  <span className="font-semibold text-foreground/80 lowercase first-letter:uppercase">
-                    {(() => {
-                      const desc = article.imageDescription || article.imageCaption || "";
-                      // Strip any HTML tags that might have been pasted (e.g. from rich text editor)
-                      return desc.replace(/<[^>]*>?/gm, "").trim();
-                    })()}
-                  </span>
-                  <span className="text-border/80 font-light px-1">|</span>
-                </>
-              )}
-              <div className="flex items-center gap-1.5">
-                <span className="font-black text-muted-foreground/40 uppercase text-[9px] tracking-[0.2em] shrink-0">
-                  PHOTO:
-                </span>
-                <span className="font-semibold text-muted-foreground shrink-0">
-                  {article.imageCredit || article.author?.name || "Special Arrangement"}
-                </span>
-              </div>
-            </div>
-          </figcaption>
-        </figure>
+            </figcaption>
+          </figure>
+        )}
+
+        {/* ── Section 6.5: AI Quick Takeaways ── */}
+        <ArticleTakeaways
+          content={article.content}
+          title={article.title}
+          excerpt={article.excerpt}
+        />
+
+        {/* ── Section 6.6: Listen to Article ── */}
+        <ArticleTTSPlayer
+          content={article.content}
+          title={article.title}
+          authorName={article.author?.name}
+        />
 
         {/* ── Section 7: ARTICLE BODY ── */}
-        <article className="space-y-6 px-1">
+        <article className={cn("space-y-6 px-1", getReadingModeClasses(readingMode))}>
           <div
             className="prose prose-lg dark:prose-invert max-w-none font-serif leading-relaxed prose-img:rounded-xl prose-img:w-full prose-headings:font-black prose-a:text-primary prose-blockquote:border-l-4 prose-blockquote:border-red-600 dark:prose-blockquote:border-red-400 prose-blockquote:bg-secondary/10 prose-blockquote:py-1 prose-blockquote:px-4 prose-blockquote:not-italic"
             dangerouslySetInnerHTML={{
-              __html: article.content
+              __html: (() => {
+                let processedContent = article.content
+                // 1. Markdown Images
                 .replace(
                   /!\[(.*?)\]\((.*?)(\s+"(.*?)")?\)/g,
                   (_match, alt, url, _space, title) => {
                     const parts = alt.split("|");
                     let desc = (parts[0]?.trim() || "").replace(/^image$/i, "");
-                    // Fallback to title if alt is empty or generic
                     if (!desc && title) desc = title;
+                    desc = desc.replace(/<[^>]*>?/gm, "").trim();
                     
                     const credit = parts[1]?.trim() || article.author?.name || "Special Arrangement";
                     const cleanUrl = url.trim();
@@ -1029,50 +1371,114 @@ export default function ArticlePage({
                     return `
                       <figure class="my-12 mx-auto max-w-[90%] sm:max-w-[700px]">
                         <div class="w-full overflow-hidden rounded-2xl bg-secondary/30 shadow-sm border border-border/10">
-                          <img src="${cleanUrl}" alt="${desc}" class="w-full h-auto"/>
+                          <img src="${cleanUrl}" alt="${desc}" class="w-full h-auto data-processed" data-processed="true"/>
                         </div>
-                        <figcaption class="pt-4 px-1 text-[12px] leading-relaxed text-muted-foreground flex items-center flex-wrap gap-x-2.5">
-                          ${
-                            desc
-                              ? `<span class="font-semibold text-foreground/80 lowercase first-letter:uppercase">${desc}</span> <span class="text-border/80 font-light px-1">|</span>`
-                              : ""
-                          }
-                          <div class="flex items-center gap-1.5">
-                            <span class="font-black text-muted-foreground/40 uppercase text-[9px] tracking-[0.2em] shrink-0">PHOTO:</span>
-                            <span class="font-semibold text-muted-foreground shrink-0">${credit}</span>
+                        <figcaption class="mt-4 px-5">
+                          <div class="font-sans text-[12px] leading-relaxed text-muted-foreground flex items-center flex-wrap gap-x-2.5">
+                            ${
+                              desc
+                                ? `<span class="font-semibold italic text-foreground/90 lowercase first-letter:uppercase">${desc}</span> <span class="text-border/80 font-light px-1">|</span>`
+                                : ""
+                            }
+                            <div class="flex items-center gap-1.5">
+                              <span class="font-black text-muted-foreground/40 uppercase text-[9px] tracking-[0.2em] shrink-0">PHOTO:</span>
+                              <span class="font-semibold text-muted-foreground shrink-0">${credit}</span>
+                            </div>
                           </div>
                         </figcaption>
                       </figure>
                     `;
                   },
                 )
+                // 2. Existing HTML Figures (captures <figcaption>)
                 .replace(
-                  /<img.*?src="(.*?)".*?alt="(.*?)".*?>/g,
+                  /<figure[^>]*>([\s\S]*?)<\/figure>/g,
+                  (match, innerContent) => {
+                    // Skip if already processed (contains our marker)
+                    if (innerContent.includes('data-processed="true"')) return match;
+
+                    const srcMatch = innerContent.match(/src="([^"]+)"/);
+                    const captionMatch = innerContent.match(/<figcaption[^>]*>([\s\S]*?)<\/figcaption>/);
+                    
+                    if (!srcMatch) return match; // No image, leave it alone
+                    
+                    const url = srcMatch[1];
+                    let desc = captionMatch ? captionMatch[1] : "";
+                    
+                    // Fallback to alt if no caption
+                    if (!desc) {
+                       const altMatch = innerContent.match(/alt="([^"]*)"/);
+                       if (altMatch) desc = altMatch[1];
+                    }
+
+                    // Clean tags
+                    desc = desc.replace(/<[^>]*>?/gm, "").trim();
+                    desc = desc.replace(/^image$/i, "");
+                    
+                    const credit = article.author?.name || "Special Arrangement";
+
+                    return `
+                      <figure class="my-12 mx-auto max-w-[90%] sm:max-w-[700px]">
+                        <div class="w-full overflow-hidden rounded-2xl bg-secondary/30 shadow-sm border border-border/10">
+                          <img src="${url}" alt="${desc}" class="w-full h-auto data-processed" data-processed="true"/>
+                        </div>
+                        <figcaption class="mt-4 px-5">
+                          <div class="font-sans text-[12px] leading-relaxed text-muted-foreground flex items-center flex-wrap gap-x-2.5">
+                            ${
+                              desc
+                                ? `<span class="font-semibold italic text-foreground/90 lowercase first-letter:uppercase">${desc}</span> <span class="text-border/80 font-light px-1">|</span>`
+                                : ""
+                            }
+                            <div class="flex items-center gap-1.5">
+                              <span class="font-black text-muted-foreground/40 uppercase text-[9px] tracking-[0.2em] shrink-0">PHOTO:</span>
+                              <span class="font-semibold text-muted-foreground shrink-0">${credit}</span>
+                            </div>
+                          </div>
+                        </figcaption>
+                      </figure>
+                    `;
+                  }
+                )
+                // 3. Orphan HTML Images (not inside figures, or processed)
+                .replace(
+                  /<img(?![^>]*data-processed="true")[^>]*src="([^"]+)"[^>]*alt="([^"]*)"[^>]*>/g,
                   (_match, url, alt) => {
-                    const cleanAlt = (alt?.trim() || "").replace(/^image$/i, "");
+                    let cleanAlt = (alt?.trim() || "").replace(/^image$/i, "");
+                    cleanAlt = cleanAlt.replace(/<[^>]*>?/gm, "").trim();
+                    
                     const credit = article.author?.name || "Special Arrangement";
                     return `
                       <figure class="my-12 mx-auto max-w-[90%] sm:max-w-[700px]">
                         <div class="w-full overflow-hidden rounded-2xl bg-secondary/30 shadow-sm border border-border/10">
-                          <img src="${url}" alt="${cleanAlt}" class="w-full h-auto"/>
+                          <img src="${url}" alt="${cleanAlt}" class="w-full h-auto data-processed" data-processed="true"/>
                         </div>
-                        <figcaption class="pt-4 px-1 text-[12px] leading-relaxed text-muted-foreground flex items-center flex-wrap gap-x-2.5">
-                          ${
-                            cleanAlt
-                              ? `<span class="font-semibold text-foreground/80 lowercase first-letter:uppercase">${cleanAlt}</span> <span class="text-border/80 font-light px-1">|</span>`
-                              : ""
-                          }
-                          <div class="flex items-center gap-1.5">
-                            <span class="font-black text-muted-foreground/40 uppercase text-[9px] tracking-[0.2em] shrink-0">PHOTO:</span>
-                            <span class="font-semibold text-muted-foreground shrink-0">${credit}</span>
+                        <figcaption class="mt-4 px-5">
+                          <div class="font-sans text-[12px] leading-relaxed text-muted-foreground flex items-center flex-wrap gap-x-2.5">
+                            ${
+                              cleanAlt
+                                ? `<span class="font-semibold italic text-foreground/90 lowercase first-letter:uppercase">${cleanAlt}</span> <span class="text-border/80 font-light px-1">|</span>`
+                                : ""
+                            }
+                            <div class="flex items-center gap-1.5">
+                              <span class="font-black text-muted-foreground/40 uppercase text-[9px] tracking-[0.2em] shrink-0">PHOTO:</span>
+                              <span class="font-semibold text-muted-foreground shrink-0">${credit}</span>
+                            </div>
                           </div>
                         </figcaption>
                       </figure>
                     `;
                   },
-                ),
+                );
+                // Apply speed-read highlights if in speed mode
+                if (readingMode === "speed") {
+                  processedContent = applySpeedReadHighlights(processedContent);
+                }
+                return processedContent;
+              })()
             }}
           />
+          {/* Sentinel for scroll tracking */}
+          <div ref={readSentinelRef} className="h-4 w-full" />
         </article>
 
         {/* ── Section 8: Tags ── */}
@@ -1155,16 +1561,42 @@ export default function ArticlePage({
             </motion.button>
           </div>
 
-          <motion.button
-            whileTap={{ scale: 0.9 }}
-            onClick={handleShare}
-            className="flex items-center gap-2 text-[14px] font-bold text-muted-foreground hover:text-foreground transition-all group"
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary group-hover:bg-foreground/5 transition-colors">
-              <Share2 className="w-5 h-5" strokeWidth={2} />
-            </div>
-            <span className="hidden sm:inline">Share Story</span>
-          </motion.button>
+          <div className="flex items-center gap-2 sm:gap-6">
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={handleBookmark}
+              className={cn(
+                "flex items-center gap-2 text-[14px] font-bold transition-all group",
+                article.bookmarked
+                  ? "text-primary"
+                  : "text-muted-foreground hover:text-primary",
+              )}
+            >
+              <div
+                className={cn(
+                  "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+                  article.bookmarked
+                    ? "bg-primary/10"
+                    : "bg-secondary group-hover:bg-primary/10",
+                )}
+              >
+                <Bookmark
+                  className={cn("w-5 h-5", article.bookmarked && "fill-current")}
+                  strokeWidth={2}
+                />
+              </div>
+            </motion.button>
+            <motion.button
+              whileTap={{ scale: 0.9 }}
+              onClick={handleShare}
+              className="flex items-center gap-2 text-[14px] font-bold text-muted-foreground hover:text-foreground transition-all group"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-secondary group-hover:bg-foreground/5 transition-colors">
+                <Share2 className="w-5 h-5" strokeWidth={2} />
+              </div>
+              <span className="hidden sm:inline">Share Story</span>
+            </motion.button>
+          </div>
         </div>
 
         {/* ── Section 11: Comment Section (Conditional) ── */}
@@ -1383,57 +1815,5 @@ export default function ArticlePage({
   );
 }
 
-function AuthPromptModal({
-  isOpen,
-  onClose,
-  onLogin,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onLogin: () => void;
-}) {
-  if (!isOpen) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div
-        className="w-full max-w-sm overflow-hidden rounded-3xl bg-card border border-border/50 shadow-2xl animate-in zoom-in-95 duration-200"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="relative p-6 text-center">
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-4 p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-secondary/50 transition-colors"
-            aria-label="Close"
-          >
-            <X className="h-5 w-5" />
-          </button>
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary rotate-3">
-            <User className="h-8 w-8" />
-          </div>
-          <h3 className="mb-2 text-xl font-black text-foreground font-serif">
-            Sign in to interact
-          </h3>
-          <p className="mb-6 text-sm text-muted-foreground leading-relaxed font-medium">
-            Join our community to like, comment, and engage with the author and
-            other readers on this story.
-          </p>
-          <div className="flex flex-col gap-3">
-            <button
-              onClick={onLogin}
-              className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98]"
-            >
-              Sign In or Sign Up
-            </button>
-            <button
-              onClick={onClose}
-              className="w-full rounded-xl py-3 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-secondary/50 transition-colors"
-            >
-              Maybe later
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+
 
